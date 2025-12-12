@@ -8,27 +8,35 @@ interface ARFaceFiltersProps {
   onClose: () => void;
 }
 
-// Gen Z style stickers
-const GENZ_STICKERS = [
-  '✨', '💅', '🔥', '💀', '😭', '🤌', '👁️', '🦋', '🌈', '⭐',
-  '💖', '🥺', '😍', '🤯', '💯', '🙌', '👀', '🎀', '🌸', '💫',
-  '😂', '❤️‍🔥', '🤡', '🥵', '💀', '👻', '🎉', '🍀', '🌟', '💜'
-];
+// Gen Z style stickers organized by category
+const STICKER_CATEGORIES = {
+  'Popular ✨': ['✨', '💅', '🔥', '💀', '😭', '🤌', '👁️', '🦋', '🌈', '⭐', '💖', '🥺'],
+  'Face Props 🎭': ['🐶', '🐱', '🐰', '🦊', '🐻', '🐼', '🐸', '🐵', '👓', '🕶️', '🥽', '🎭'],
+  'Hats & Hair 🎩': ['👑', '🎩', '🧢', '👒', '🎀', '💇‍♀️', '🦄', '🌸', '🌺', '🌻', '🌼', '💐'],
+  'Fun 🎉': ['😂', '❤️‍🔥', '🤡', '🥵', '👻', '🎉', '🍀', '🌟', '💜', '💯', '🙌', '👀'],
+  'Aesthetic 🌙': ['🌙', '⚡', '🔮', '💎', '🪐', '🌊', '🍃', '🦢', '🕊️', '🐚', '🎐', '🪷'],
+};
 
-// AR Face filters with CSS effects
-const FACE_FILTERS = [
-  { id: 'none', name: 'None', overlay: null, effect: '' },
-  { id: 'sparkle', name: 'Sparkle', overlay: '✨', effect: 'brightness-110 saturate-110' },
-  { id: 'hearts', name: 'Hearts', overlay: '💖', effect: 'saturate-125 hue-rotate-[330deg]' },
-  { id: 'fire', name: 'Fire', overlay: '🔥', effect: 'saturate-150 contrast-110' },
-  { id: 'butterfly', name: 'Butterfly', overlay: '🦋', effect: 'saturate-125 hue-rotate-[200deg]' },
-  { id: 'stars', name: 'Stars', overlay: '⭐', effect: 'brightness-110 saturate-130' },
-  { id: 'glam', name: 'Glam', overlay: '💎', effect: 'brightness-105 contrast-105 saturate-110' },
-  { id: 'vintage', name: 'Vintage', overlay: null, effect: 'sepia-[0.3] contrast-110' },
-  { id: 'bw', name: 'B&W', overlay: null, effect: 'grayscale' },
-  { id: 'cool', name: 'Cool', overlay: '❄️', effect: 'hue-rotate-[200deg] saturate-110' },
-  { id: 'warm', name: 'Warm', overlay: '☀️', effect: 'hue-rotate-[20deg] saturate-130' },
-  { id: 'neon', name: 'Neon', overlay: '💜', effect: 'saturate-200 brightness-110 contrast-125' },
+// AR Face filters with visual overlays (simulated AR effects)
+const AR_OVERLAYS = [
+  { id: 'none', name: 'None', overlay: null, effect: '', faceOverlay: null },
+  { id: 'dog', name: 'Puppy', overlay: '🐶', effect: 'saturate-110', faceOverlay: 'dog-ears' },
+  { id: 'cat', name: 'Kitty', overlay: '🐱', effect: 'saturate-110', faceOverlay: 'cat-ears' },
+  { id: 'bunny', name: 'Bunny', overlay: '🐰', effect: 'brightness-105', faceOverlay: 'bunny-ears' },
+  { id: 'glasses', name: 'Cool', overlay: '😎', effect: '', faceOverlay: 'glasses' },
+  { id: 'crown', name: 'Queen', overlay: '👑', effect: 'saturate-120', faceOverlay: 'crown' },
+  { id: 'hearts', name: 'Hearts', overlay: '💖', effect: 'saturate-125 hue-rotate-[330deg]', faceOverlay: 'hearts' },
+  { id: 'fire', name: 'Fire', overlay: '🔥', effect: 'saturate-150 contrast-110', faceOverlay: 'fire' },
+  { id: 'butterfly', name: 'Butterfly', overlay: '🦋', effect: 'saturate-125', faceOverlay: 'butterfly' },
+  { id: 'stars', name: 'Stars', overlay: '⭐', effect: 'brightness-110 saturate-130', faceOverlay: 'stars' },
+  { id: 'sparkle', name: 'Sparkle', overlay: '✨', effect: 'brightness-110 saturate-110', faceOverlay: 'sparkle' },
+  { id: 'nerd', name: 'Nerd', overlay: '🤓', effect: '', faceOverlay: 'nerd-glasses' },
+  { id: 'vintage', name: 'Vintage', overlay: null, effect: 'sepia-[0.3] contrast-110', faceOverlay: null },
+  { id: 'bw', name: 'B&W', overlay: null, effect: 'grayscale', faceOverlay: null },
+  { id: 'cool', name: 'Frost', overlay: '❄️', effect: 'hue-rotate-[200deg] saturate-110', faceOverlay: 'frost' },
+  { id: 'warm', name: 'Warm', overlay: '☀️', effect: 'hue-rotate-[20deg] saturate-130', faceOverlay: null },
+  { id: 'neon', name: 'Neon', overlay: '💜', effect: 'saturate-200 brightness-110 contrast-125', faceOverlay: 'neon' },
+  { id: 'alien', name: 'Alien', overlay: '👽', effect: 'hue-rotate-[100deg]', faceOverlay: 'alien' },
 ];
 
 interface PlacedSticker {
@@ -45,10 +53,11 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const [activeFilter, setActiveFilter] = useState(FACE_FILTERS[0]);
+  const [activeFilter, setActiveFilter] = useState(AR_OVERLAYS[0]);
   const [stickers, setStickers] = useState<PlacedSticker[]>([]);
   const [showStickers, setShowStickers] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('Popular ✨');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -189,30 +198,100 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
           />
         )}
 
-        {/* AR Filter Overlay */}
-        {activeFilter.overlay && (
+        {/* AR Filter Overlay - Enhanced with face prop effects */}
+        {activeFilter.faceOverlay && (
+          <div className="absolute inset-0 pointer-events-none">
+            {/* Dog ears */}
+            {activeFilter.faceOverlay === 'dog-ears' && (
+              <>
+                <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="absolute top-[15%] left-[20%] text-7xl transform -rotate-12">🐶</motion.div>
+                <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="absolute top-[18%] left-[25%] text-4xl">👅</motion.div>
+              </>
+            )}
+            {/* Cat ears */}
+            {activeFilter.faceOverlay === 'cat-ears' && (
+              <>
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-[12%] left-[25%] text-6xl">🐱</motion.div>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute top-[30%] left-[35%] text-2xl">✨</motion.div>
+              </>
+            )}
+            {/* Bunny ears */}
+            {activeFilter.faceOverlay === 'bunny-ears' && (
+              <motion.div initial={{ y: -30 }} animate={{ y: 0 }} className="absolute top-[10%] left-[30%] text-7xl">🐰</motion.div>
+            )}
+            {/* Glasses */}
+            {(activeFilter.faceOverlay === 'glasses' || activeFilter.faceOverlay === 'nerd-glasses') && (
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-[35%] left-[30%] text-6xl">{activeFilter.faceOverlay === 'nerd-glasses' ? '🤓' : '😎'}</motion.div>
+            )}
+            {/* Crown */}
+            {activeFilter.faceOverlay === 'crown' && (
+              <motion.div initial={{ y: -50, rotate: -10 }} animate={{ y: 0, rotate: 0 }} className="absolute top-[8%] left-[28%] text-7xl">👑</motion.div>
+            )}
+            {/* Hearts floating */}
+            {activeFilter.faceOverlay === 'hearts' && (
+              <>
+                <motion.div animate={{ y: [-10, 10, -10] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute top-[15%] left-[20%] text-5xl">💖</motion.div>
+                <motion.div animate={{ y: [10, -10, 10] }} transition={{ repeat: Infinity, duration: 2.5 }} className="absolute top-[20%] right-[20%] text-4xl">💕</motion.div>
+                <motion.div animate={{ y: [-5, 15, -5] }} transition={{ repeat: Infinity, duration: 1.8 }} className="absolute top-[10%] left-[45%] text-3xl">💗</motion.div>
+              </>
+            )}
+            {/* Fire */}
+            {activeFilter.faceOverlay === 'fire' && (
+              <>
+                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.5 }} className="absolute bottom-[20%] left-[15%] text-6xl">🔥</motion.div>
+                <motion.div animate={{ scale: [1.1, 1, 1.1] }} transition={{ repeat: Infinity, duration: 0.6 }} className="absolute bottom-[22%] right-[15%] text-5xl">🔥</motion.div>
+              </>
+            )}
+            {/* Butterfly */}
+            {activeFilter.faceOverlay === 'butterfly' && (
+              <>
+                <motion.div animate={{ x: [-20, 20, -20], y: [-10, 10, -10] }} transition={{ repeat: Infinity, duration: 3 }} className="absolute top-[20%] left-[10%] text-5xl">🦋</motion.div>
+                <motion.div animate={{ x: [20, -20, 20], y: [10, -10, 10] }} transition={{ repeat: Infinity, duration: 4 }} className="absolute top-[15%] right-[10%] text-4xl">🦋</motion.div>
+              </>
+            )}
+            {/* Stars */}
+            {activeFilter.faceOverlay === 'stars' && (
+              <>
+                <motion.div animate={{ rotate: 360, scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute top-[10%] left-[20%] text-5xl">⭐</motion.div>
+                <motion.div animate={{ rotate: -360, scale: [1.1, 1, 1.1] }} transition={{ repeat: Infinity, duration: 2.5 }} className="absolute top-[15%] right-[25%] text-4xl">🌟</motion.div>
+                <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute top-[8%] left-[45%] text-3xl">✨</motion.div>
+              </>
+            )}
+            {/* Sparkle */}
+            {activeFilter.faceOverlay === 'sparkle' && (
+              <>
+                <motion.div animate={{ opacity: [0, 1, 0], scale: [0.8, 1.2, 0.8] }} transition={{ repeat: Infinity, duration: 1 }} className="absolute top-[20%] left-[15%] text-4xl">✨</motion.div>
+                <motion.div animate={{ opacity: [1, 0, 1], scale: [1.2, 0.8, 1.2] }} transition={{ repeat: Infinity, duration: 1.2 }} className="absolute top-[25%] right-[20%] text-3xl">✨</motion.div>
+                <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 0.8 }} className="absolute top-[15%] left-[40%] text-5xl">✨</motion.div>
+              </>
+            )}
+            {/* Alien */}
+            {activeFilter.faceOverlay === 'alien' && (
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-[30%] left-[30%] text-7xl">👽</motion.div>
+            )}
+            {/* Neon glow */}
+            {activeFilter.faceOverlay === 'neon' && (
+              <div className="absolute inset-0 bg-gradient-to-t from-purple-500/30 via-transparent to-pink-500/30 mix-blend-overlay" />
+            )}
+            {/* Frost */}
+            {activeFilter.faceOverlay === 'frost' && (
+              <>
+                <motion.div animate={{ y: [0, 50] }} transition={{ repeat: Infinity, duration: 3 }} className="absolute top-[5%] left-[20%] text-3xl opacity-70">❄️</motion.div>
+                <motion.div animate={{ y: [0, 60] }} transition={{ repeat: Infinity, duration: 4, delay: 0.5 }} className="absolute top-[0%] left-[50%] text-2xl opacity-60">❄️</motion.div>
+                <motion.div animate={{ y: [0, 40] }} transition={{ repeat: Infinity, duration: 2.5, delay: 1 }} className="absolute top-[3%] right-[25%] text-4xl opacity-50">❄️</motion.div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Simple overlay for non-face-prop filters */}
+        {activeFilter.overlay && !activeFilter.faceOverlay && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1, rotate: [0, 5, -5, 0] }}
               transition={{ duration: 0.5 }}
               className="text-8xl opacity-60"
-            >
-              {activeFilter.overlay}
-            </motion.div>
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.1 }}
-              className="absolute top-20 left-10 text-5xl opacity-40"
-            >
-              {activeFilter.overlay}
-            </motion.div>
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2 }}
-              className="absolute bottom-40 right-10 text-6xl opacity-50"
             >
               {activeFilter.overlay}
             </motion.div>
@@ -238,7 +317,7 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
         <canvas ref={canvasRef} className="hidden" />
       </div>
 
-      {/* Stickers Panel */}
+      {/* Stickers Panel - Categorized */}
       <AnimatePresence>
         {showStickers && (
           <motion.div
@@ -247,9 +326,23 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
             exit={{ y: 200 }}
             className="absolute bottom-32 left-0 right-0 bg-black/80 backdrop-blur-xl p-4 rounded-t-3xl z-10"
           >
+            {/* Category tabs */}
+            <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide">
+              {Object.keys(STICKER_CATEGORIES).map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-all ${
+                    activeCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-white/10 text-white/70'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
             <p className="text-white/60 text-xs mb-3 text-center">tap to add, double-tap to remove ✨</p>
-            <div className="grid grid-cols-6 gap-2 max-h-40 overflow-y-auto">
-              {GENZ_STICKERS.map((emoji, i) => (
+            <div className="grid grid-cols-6 gap-2 max-h-32 overflow-y-auto">
+              {STICKER_CATEGORIES[activeCategory as keyof typeof STICKER_CATEGORIES].map((emoji, i) => (
                 <motion.button
                   key={i}
                   whileHover={{ scale: 1.2 }}
@@ -265,7 +358,7 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
         )}
       </AnimatePresence>
 
-      {/* Filters Panel */}
+      {/* Filters Panel - With AR overlays */}
       <AnimatePresence>
         {showFilters && (
           <motion.div
@@ -274,8 +367,9 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
             exit={{ y: 200 }}
             className="absolute bottom-32 left-0 right-0 bg-black/80 backdrop-blur-xl p-4 rounded-t-3xl z-10"
           >
+            <p className="text-white/60 text-xs mb-3 text-center">AR Face Effects & Filters 🎭</p>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {FACE_FILTERS.map(filter => (
+              {AR_OVERLAYS.map(filter => (
                 <button
                   key={filter.id}
                   onClick={() => setActiveFilter(filter)}

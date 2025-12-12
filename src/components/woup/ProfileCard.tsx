@@ -1,24 +1,28 @@
 import { useState, useEffect } from 'react';
-import { Flame, Edit2, LogOut, Trophy, ChevronRight } from 'lucide-react';
+import { Flame, Edit2, LogOut, Trophy, ChevronRight, Lock, Bookmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { useStreakRewards } from '@/hooks/useStreakRewards';
 import { usePosts, Post } from '@/hooks/usePosts';
+import { useBookmarks } from '@/hooks/useBookmarks';
 import { supabase } from '@/integrations/supabase/client';
 import { useChallenges, ChallengeResponse } from '@/hooks/useChallenges';
 import SpotifyConnect from './SpotifyConnect';
 import { StreakBadges, DayStreakCounter } from './StreakBadges';
+
 interface ProfileCardProps {
   profile: Profile;
   onEdit: () => void;
   onShowLeaderboard: () => void;
+  onShowVault: () => void;
 }
 
-const ProfileCard = ({ profile, onEdit, onShowLeaderboard }: ProfileCardProps) => {
+const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault }: ProfileCardProps) => {
   const { signOut } = useAuth();
   const { getClaimedBadges, getNextMilestone } = useStreakRewards();
   const { getUserPosts } = usePosts();
+  const { bookmarks } = useBookmarks();
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [userResponses, setUserResponses] = useState<ChallengeResponse[]>([]);
 
@@ -111,6 +115,30 @@ const ProfileCard = ({ profile, onEdit, onShowLeaderboard }: ProfileCardProps) =
           </div>
         </div>
       )}
+
+      {/* Vault Button */}
+      <button 
+        onClick={onShowVault}
+        className="w-full glass rounded-2xl p-4 text-left hover:bg-muted/20 transition-colors"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-12 h-12 rounded-2xl flex items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}40, ${profile.color_secondary || '#f472b6'}40)` }}
+            >
+              <Lock className="w-5 h-5" style={{ color: profile.color_primary || 'hsl(var(--primary))' }} />
+            </div>
+            <div>
+              <p className="font-semibold flex items-center gap-2">
+                <Bookmark className="w-4 h-4" /> Your Vault
+              </p>
+              <p className="text-sm text-muted-foreground">{bookmarks.length} saved posts</p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </div>
+      </button>
 
       {/* Streak & Badges - Clickable for leaderboard */}
       <button 
