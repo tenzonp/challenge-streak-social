@@ -231,6 +231,10 @@ export type Database = {
           interests: string[] | null
           longest_streak: number
           song_url: string | null
+          spotify_access_token: string | null
+          spotify_connected: boolean | null
+          spotify_refresh_token: string | null
+          spotify_token_expires_at: string | null
           streak: number
           updated_at: string
           user_id: string
@@ -250,6 +254,10 @@ export type Database = {
           interests?: string[] | null
           longest_streak?: number
           song_url?: string | null
+          spotify_access_token?: string | null
+          spotify_connected?: boolean | null
+          spotify_refresh_token?: string | null
+          spotify_token_expires_at?: string | null
           streak?: number
           updated_at?: string
           user_id: string
@@ -269,6 +277,10 @@ export type Database = {
           interests?: string[] | null
           longest_streak?: number
           song_url?: string | null
+          spotify_access_token?: string | null
+          spotify_connected?: boolean | null
+          spotify_refresh_token?: string | null
+          spotify_token_expires_at?: string | null
           streak?: number
           updated_at?: string
           user_id?: string
