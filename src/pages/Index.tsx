@@ -10,6 +10,7 @@ import SendChallengeModal from '@/components/woup/SendChallengeModal';
 import CameraModal from '@/components/woup/CameraModal';
 import ProfileEditModal from '@/components/woup/ProfileEditModal';
 import ChatView from '@/components/woup/ChatView';
+import ChatsList from '@/components/woup/ChatsList';
 import UserSearch from '@/components/woup/UserSearch';
 import CreatePostModal from '@/components/woup/CreatePostModal';
 import RewardAnimation from '@/components/woup/RewardAnimation';
@@ -17,6 +18,7 @@ import UserProfileModal from '@/components/woup/UserProfileModal';
 import StreakLeaderboard from '@/components/woup/StreakLeaderboard';
 import CompetitionCard from '@/components/woup/CompetitionCard';
 import VideoCallModal from '@/components/woup/VideoCallModal';
+import BookmarksVault from '@/components/woup/BookmarksVault';
 import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
 import { DayStreakCounter } from '@/components/woup/StreakBadges';
 import { useAuth } from '@/hooks/useAuth';
@@ -55,11 +57,13 @@ const Index = () => {
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [chatWith, setChatWith] = useState<Profile | null>(null);
+  const [showChatsList, setShowChatsList] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [videoCallWith, setVideoCallWith] = useState<Profile | null>(null);
+  const [showVault, setShowVault] = useState(false);
 
   const unreadCount = conversations?.reduce((acc, c) => acc + c.unreadCount, 0) || 0;
 
@@ -126,7 +130,7 @@ const Index = () => {
         onProfileClick={() => setActiveTab('profile')} 
         pendingCount={pendingChallenges.length}
         unreadMessages={unreadCount}
-        onMessagesClick={() => setChatWith(conversations[0]?.friend || null)}
+        onMessagesClick={() => setShowChatsList(true)}
       />
       
       <main className="container mx-auto px-4">
@@ -308,6 +312,7 @@ const Index = () => {
             profile={profile} 
             onEdit={() => setShowProfileEdit(true)} 
             onShowLeaderboard={() => setShowLeaderboard(true)}
+            onShowVault={() => setShowVault(true)}
           />
         )}
       </main>
@@ -317,6 +322,12 @@ const Index = () => {
       {selectedFriend && <SendChallengeModal friend={selectedFriend} onClose={() => setSelectedFriend(null)} onSend={handleSendChallenge} />}
       {activeChallenge && <CameraModal challenge={activeChallenge} onClose={() => setActiveChallenge(null)} onSubmit={handleSubmitResponse} />}
       {showProfileEdit && profile && <ProfileEditModal profile={profile} onClose={() => setShowProfileEdit(false)} />}
+      {showChatsList && (
+        <ChatsList 
+          onSelectChat={(friend) => { setShowChatsList(false); setChatWith(friend); }}
+          onClose={() => setShowChatsList(false)}
+        />
+      )}
       {chatWith && <ChatView friend={chatWith} onBack={() => setChatWith(null)} onViewProfile={handleViewProfile} onVideoCall={setVideoCallWith} />}
       {showSearch && <UserSearch onChallenge={handleChallenge} onChat={setChatWith} onClose={() => setShowSearch(false)} />}
       {showCreatePost && <CreatePostModal onClose={() => setShowCreatePost(false)} />}
@@ -334,6 +345,7 @@ const Index = () => {
       )}
       {videoCallWith && <VideoCallModal friend={videoCallWith} onClose={() => setVideoCallWith(null)} />}
       {newAchievement && <AchievementUnlockModal achievement={newAchievement} onClose={() => setNewAchievement(null)} />}
+      {showVault && <BookmarksVault onClose={() => setShowVault(false)} />}
     </div>
   );
 };
