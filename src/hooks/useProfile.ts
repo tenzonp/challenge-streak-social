@@ -12,6 +12,12 @@ export interface Profile {
   vibe: string | null;
   streak: number;
   longest_streak: number;
+  color_primary: string | null;
+  color_secondary: string | null;
+  interests: string[] | null;
+  current_song: string | null;
+  current_artist: string | null;
+  song_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -36,7 +42,7 @@ export const useProfile = () => {
         .maybeSingle();
 
       if (!error && data) {
-        setProfile(data);
+        setProfile(data as Profile);
       }
       setLoading(false);
     };
@@ -53,11 +59,19 @@ export const useProfile = () => {
       .eq('user_id', user.id);
 
     if (!error) {
-      setProfile(prev => prev ? { ...prev, ...updates } : null);
+      setProfile(prev => prev ? { ...prev, ...updates } as Profile : null);
     }
 
     return { error };
   };
 
-  return { profile, loading, updateProfile };
+  return { profile, loading, updateProfile, refetch: async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (data) setProfile(data as Profile);
+  }};
 };

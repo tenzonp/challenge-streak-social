@@ -143,14 +143,94 @@ export type Database = {
           },
         ]
       }
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          read: boolean
+          receiver_id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          read?: boolean
+          receiver_id: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          read?: boolean
+          receiver_id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      posts: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
           bio: string | null
+          color_primary: string | null
+          color_secondary: string | null
           created_at: string
+          current_artist: string | null
+          current_song: string | null
           display_name: string
           id: string
+          interests: string[] | null
           longest_streak: number
+          song_url: string | null
           streak: number
           updated_at: string
           user_id: string
@@ -160,10 +240,16 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
           created_at?: string
+          current_artist?: string | null
+          current_song?: string | null
           display_name: string
           id?: string
+          interests?: string[] | null
           longest_streak?: number
+          song_url?: string | null
           streak?: number
           updated_at?: string
           user_id: string
@@ -173,10 +259,16 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          color_primary?: string | null
+          color_secondary?: string | null
           created_at?: string
+          current_artist?: string | null
+          current_song?: string | null
           display_name?: string
           id?: string
+          interests?: string[] | null
           longest_streak?: number
+          song_url?: string | null
           streak?: number
           updated_at?: string
           user_id?: string
@@ -217,6 +309,38 @@ export type Database = {
           },
           {
             foreignKeyName: "reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      streak_rewards: {
+        Row: {
+          claimed_at: string
+          id: string
+          reward_type: string
+          streak_count: number
+          user_id: string
+        }
+        Insert: {
+          claimed_at?: string
+          id?: string
+          reward_type: string
+          streak_count: number
+          user_id: string
+        }
+        Update: {
+          claimed_at?: string
+          id?: string
+          reward_type?: string
+          streak_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "streak_rewards_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
