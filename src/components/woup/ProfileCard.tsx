@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Flame, Edit2, LogOut, Music, Trophy, ChevronRight } from 'lucide-react';
+import { Flame, Edit2, LogOut, Trophy, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,13 +7,15 @@ import { useStreakRewards } from '@/hooks/useStreakRewards';
 import { usePosts, Post } from '@/hooks/usePosts';
 import { supabase } from '@/integrations/supabase/client';
 import { useChallenges, ChallengeResponse } from '@/hooks/useChallenges';
+import SpotifyConnect from './SpotifyConnect';
 
 interface ProfileCardProps {
   profile: Profile;
   onEdit: () => void;
+  onShowLeaderboard: () => void;
 }
 
-const ProfileCard = ({ profile, onEdit }: ProfileCardProps) => {
+const ProfileCard = ({ profile, onEdit, onShowLeaderboard }: ProfileCardProps) => {
   const { signOut } = useAuth();
   const { getClaimedBadges, getNextMilestone } = useStreakRewards();
   const { getUserPosts } = usePosts();
@@ -28,7 +30,6 @@ const ProfileCard = ({ profile, onEdit }: ProfileCardProps) => {
       const posts = await getUserPosts(profile.user_id);
       setUserPosts(posts);
 
-      // Fetch user's challenge responses
       const { data } = await supabase
         .from('challenge_responses')
         .select('*')
@@ -82,28 +83,8 @@ const ProfileCard = ({ profile, onEdit }: ProfileCardProps) => {
         </div>
       </div>
 
-      {/* Music */}
-      {profile.current_song && (
-        <div 
-          className="rounded-2xl p-4 flex items-center gap-3"
-          style={{ 
-            background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}15, ${profile.color_secondary || '#f472b6'}15)`,
-            borderLeft: `3px solid ${profile.color_primary || '#4ade80'}`
-          }}
-        >
-          <div 
-            className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 animate-pulse-slow"
-            style={{ background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}, ${profile.color_secondary || '#f472b6'})` }}
-          >
-            <Music className="w-7 h-7 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground">now playing</p>
-            <p className="font-bold truncate text-lg">{profile.current_song}</p>
-            <p className="text-sm text-muted-foreground truncate">{profile.current_artist}</p>
-          </div>
-        </div>
-      )}
+      {/* Spotify */}
+      <SpotifyConnect profile={profile} />
 
       {/* Interests */}
       {profile.interests && profile.interests.length > 0 && (
@@ -127,8 +108,11 @@ const ProfileCard = ({ profile, onEdit }: ProfileCardProps) => {
         </div>
       )}
 
-      {/* Streak & Badges */}
-      <div className="glass rounded-2xl p-4">
+      {/* Streak & Badges - Clickable for leaderboard */}
+      <button 
+        onClick={onShowLeaderboard}
+        className="w-full glass rounded-2xl p-4 text-left hover:bg-muted/20 transition-colors"
+      >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div 
@@ -142,25 +126,31 @@ const ProfileCard = ({ profile, onEdit }: ProfileCardProps) => {
               <p className="text-sm text-muted-foreground">day streak</p>
             </div>
           </div>
-          {nextMilestone && (
-            <div className="text-right">
-              <p className="text-2xl">{nextMilestone.reward}</p>
-              <p className="text-xs text-muted-foreground">{nextMilestone.streak - profile.streak} to go</p>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {nextMilestone && (
+              <div className="text-right">
+                <p className="text-2xl">{nextMilestone.reward}</p>
+                <p className="text-xs text-muted-foreground">{nextMilestone.streak - profile.streak} to go</p>
+              </div>
+            )}
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          </div>
         </div>
         
-        {badges.length > 0 && (
-          <div className="flex items-center gap-2 pt-3 border-t border-border/50">
-            <Trophy className="w-4 h-4 text-muted-foreground" />
+        <div className="flex items-center justify-between pt-3 border-t border-border/50">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-primary" />
+            <span className="text-sm text-muted-foreground">view leaderboard</span>
+          </div>
+          {badges.length > 0 && (
             <div className="flex gap-1">
               {badges.map((badge, i) => (
                 <span key={i} className="text-xl">{badge.reward}</span>
               ))}
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </button>
 
       {/* Bio */}
       {profile.bio && (
