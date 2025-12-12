@@ -22,7 +22,7 @@ import { DayStreakCounter } from '@/components/woup/StreakBadges';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
 import { useChallenges, Challenge } from '@/hooks/useChallenges';
-import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
+import { useAIFeed } from '@/hooks/useAIFeed';
 import { useFriends } from '@/hooks/useFriends';
 import { useMessages } from '@/hooks/useMessages';
 import { useChallengeExpiry } from '@/hooks/useChallengeExpiry';
@@ -41,7 +41,7 @@ const Index = () => {
   const { profile, loading: profileLoading } = useProfile();
   const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
   const [feedTab, setFeedTab] = useState<FeedTab>('friends');
-  const { posts, addReaction, markAsViewed } = usePersonalizedFeed(feedTab);
+  const { posts, addReaction, markAsViewed, loading: feedLoading } = useAIFeed(feedTab);
   const { friends, allUsers, addFriend } = useFriends();
   const { conversations } = useMessages();
   const { showReward, setShowReward, checkAndClaimReward } = useStreakRewards();
