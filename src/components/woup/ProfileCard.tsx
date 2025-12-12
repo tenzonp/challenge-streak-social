@@ -1,77 +1,202 @@
-import { Flame, Edit2, Settings, LogOut } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Flame, Edit2, LogOut, Music, Trophy, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
+import { useStreakRewards } from '@/hooks/useStreakRewards';
+import { usePosts, Post } from '@/hooks/usePosts';
+import { supabase } from '@/integrations/supabase/client';
+import { useChallenges, ChallengeResponse } from '@/hooks/useChallenges';
 
 interface ProfileCardProps {
   profile: Profile;
+  onEdit: () => void;
 }
 
-const ProfileCard = ({ profile }: ProfileCardProps) => {
+const ProfileCard = ({ profile, onEdit }: ProfileCardProps) => {
   const { signOut } = useAuth();
+  const { getClaimedBadges, getNextMilestone } = useStreakRewards();
+  const { getUserPosts } = usePosts();
+  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [userResponses, setUserResponses] = useState<ChallengeResponse[]>([]);
+
+  const badges = getClaimedBadges();
+  const nextMilestone = getNextMilestone(profile.streak);
+
+  useEffect(() => {
+    const fetchUserContent = async () => {
+      const posts = await getUserPosts(profile.user_id);
+      setUserPosts(posts);
+
+      // Fetch user's challenge responses
+      const { data } = await supabase
+        .from('challenge_responses')
+        .select('*')
+        .eq('user_id', profile.user_id)
+        .order('created_at', { ascending: false })
+        .limit(6);
+
+      if (data) {
+        setUserResponses(data as ChallengeResponse[]);
+      }
+    };
+
+    fetchUserContent();
+  }, [profile.user_id]);
 
   return (
-    <div className="glass rounded-3xl p-6 animate-scale-in">
-      {/* Header with settings */}
-      <div className="flex justify-between mb-4">
-        <Button variant="ghost" size="icon" onClick={signOut}>
-          <LogOut className="w-5 h-5" />
-        </Button>
-        <Button variant="ghost" size="icon">
-          <Settings className="w-5 h-5" />
-        </Button>
-      </div>
-      
-      {/* Avatar & Info */}
-      <div className="flex flex-col items-center text-center mb-6">
-        <div className="relative mb-4">
+    <div className="space-y-4 animate-scale-in">
+      {/* Profile Header with custom gradient */}
+      <div 
+        className="rounded-3xl p-6 relative overflow-hidden"
+        style={{ 
+          background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}, ${profile.color_secondary || '#f472b6'})` 
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+        
+        <div className="relative flex justify-between mb-4">
+          <Button variant="glass" size="icon" onClick={signOut}>
+            <LogOut className="w-5 h-5" />
+          </Button>
+          <Button variant="glass" size="icon" onClick={onEdit}>
+            <Edit2 className="w-5 h-5" />
+          </Button>
+        </div>
+        
+        <div className="relative flex flex-col items-center text-center">
           <img 
             src={profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.user_id}`} 
             alt={profile.display_name}
-            className="w-24 h-24 rounded-3xl border-4 border-primary shadow-neon-green"
+            className="w-24 h-24 rounded-3xl border-4 border-background mb-3 shadow-xl"
           />
-          <button className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full gradient-secondary flex items-center justify-center shadow-neon-pink">
-            <Edit2 className="w-4 h-4 text-secondary-foreground" />
-          </button>
-        </div>
-        
-        <h2 className="text-2xl font-bold mb-1">{profile.display_name}</h2>
-        <p className="text-muted-foreground mb-2">@{profile.username}</p>
-        
-        {profile.vibe && (
-          <span className="px-4 py-1.5 rounded-full bg-accent/20 text-accent text-sm">
-            {profile.vibe}
-          </span>
-        )}
-      </div>
-      
-      {/* Streak showcase */}
-      <div className="gradient-card rounded-2xl p-4 mb-6">
-        <div className="flex items-center justify-center gap-3">
-          <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center animate-glow">
-            <Flame className="w-7 h-7 text-primary-foreground" />
-          </div>
-          <div>
-            <p className="text-4xl font-bold text-gradient-primary">{profile.streak}</p>
-            <p className="text-sm text-muted-foreground">day streak 🔥</p>
-          </div>
+          
+          <h2 className="text-2xl font-bold text-white drop-shadow-lg">{profile.display_name}</h2>
+          <p className="text-white/80">@{profile.username}</p>
+          
+          {profile.vibe && (
+            <span className="mt-2 px-4 py-1.5 rounded-full bg-background/30 backdrop-blur-sm text-white text-sm">
+              {profile.vibe}
+            </span>
+          )}
         </div>
       </div>
-      
-      {/* Bio */}
-      {profile.bio && (
-        <div className="text-center">
-          <p className="text-muted-foreground">{profile.bio}</p>
+
+      {/* Music */}
+      {profile.current_song && (
+        <div className="glass rounded-2xl p-4 flex items-center gap-3">
+          <div 
+            className="w-12 h-12 rounded-xl flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}, ${profile.color_secondary || '#f472b6'})` }}
+          >
+            <Music className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">listening to</p>
+            <p className="font-semibold truncate">{profile.current_song}</p>
+            <p className="text-sm text-muted-foreground truncate">{profile.current_artist}</p>
+          </div>
         </div>
       )}
-      
+
+      {/* Interests */}
+      {profile.interests && profile.interests.length > 0 && (
+        <div className="glass rounded-2xl p-4">
+          <p className="text-xs text-muted-foreground mb-2">interests</p>
+          <div className="flex flex-wrap gap-2">
+            {profile.interests.map((interest, i) => (
+              <span 
+                key={i} 
+                className="px-3 py-1 rounded-full text-sm"
+                style={{ 
+                  background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}20, ${profile.color_secondary || '#f472b6'}20)`,
+                  color: profile.color_primary || '#4ade80'
+                }}
+              >
+                {interest}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Streak & Badges */}
+      <div className="glass rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-14 h-14 rounded-2xl flex items-center justify-center animate-glow"
+              style={{ background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}, ${profile.color_secondary || '#f472b6'})` }}
+            >
+              <Flame className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <p className="text-3xl font-bold">{profile.streak}</p>
+              <p className="text-sm text-muted-foreground">day streak</p>
+            </div>
+          </div>
+          {nextMilestone && (
+            <div className="text-right">
+              <p className="text-2xl">{nextMilestone.reward}</p>
+              <p className="text-xs text-muted-foreground">{nextMilestone.streak - profile.streak} to go</p>
+            </div>
+          )}
+        </div>
+        
+        {badges.length > 0 && (
+          <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+            <Trophy className="w-4 h-4 text-muted-foreground" />
+            <div className="flex gap-1">
+              {badges.map((badge, i) => (
+                <span key={i} className="text-xl">{badge.reward}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bio */}
+      {profile.bio && (
+        <div className="glass rounded-2xl p-4">
+          <p className="text-xs text-muted-foreground mb-1">about</p>
+          <p>{profile.bio}</p>
+        </div>
+      )}
+
+      {/* Posts Grid */}
+      {(userResponses.length > 0 || userPosts.length > 0) && (
+        <div className="glass rounded-2xl p-4">
+          <p className="text-xs text-muted-foreground mb-3">posts</p>
+          <div className="grid grid-cols-3 gap-2">
+            {userResponses.slice(0, 6).map(response => (
+              <div key={response.id} className="aspect-square rounded-xl overflow-hidden">
+                <img 
+                  src={response.back_photo_url} 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+            {userPosts.slice(0, 6 - userResponses.length).map(post => (
+              post.image_url && (
+                <div key={post.id} className="aspect-square rounded-xl overflow-hidden">
+                  <img 
+                    src={post.image_url} 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-border/50">
-        <div className="text-center">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="glass rounded-2xl p-4 text-center">
           <p className="text-2xl font-bold">{profile.streak}</p>
           <p className="text-xs text-muted-foreground">current streak</p>
         </div>
-        <div className="text-center">
+        <div className="glass rounded-2xl p-4 text-center">
           <p className="text-2xl font-bold">{profile.longest_streak}</p>
           <p className="text-xs text-muted-foreground">longest streak</p>
         </div>

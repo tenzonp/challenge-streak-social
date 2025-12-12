@@ -23,7 +23,7 @@ export const useFriends = () => {
 
     if (!error && friendships) {
       const friendProfiles = friendships
-        .map(f => f.friend)
+        .map(f => f.friend as Profile | null)
         .filter((f): f is Profile => f !== null);
       setFriends(friendProfiles);
     }
@@ -36,7 +36,7 @@ export const useFriends = () => {
       .limit(50);
 
     if (users) {
-      setAllUsers(users);
+      setAllUsers(users as Profile[]);
     }
 
     setLoading(false);
@@ -46,6 +46,19 @@ export const useFriends = () => {
     fetchFriends();
   }, [user]);
 
+  const searchUsers = async (query: string) => {
+    if (!query.trim()) return [];
+    
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+      .neq('user_id', user?.id || '')
+      .limit(20);
+    
+    return (data || []) as Profile[];
+  };
+
   const addFriend = async (friendId: string) => {
     if (!user) return { error: new Error('Not authenticated') };
 
@@ -54,7 +67,7 @@ export const useFriends = () => {
       .insert({
         user_id: user.id,
         friend_id: friendId,
-        status: 'accepted', // Auto-accept for now
+        status: 'accepted',
       });
 
     if (!error) {
@@ -73,5 +86,5 @@ export const useFriends = () => {
     return { error };
   };
 
-  return { friends, allUsers, loading, addFriend, refetch: fetchFriends };
+  return { friends, allUsers, loading, addFriend, searchUsers, refetch: fetchFriends };
 };
