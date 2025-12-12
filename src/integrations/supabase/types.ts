@@ -14,6 +14,35 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookmarks: {
+        Row: {
+          created_at: string
+          id: string
+          response_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          response_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          response_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmarks_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: false
+            referencedRelation: "challenge_responses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       challenge_responses: {
         Row: {
           back_photo_url: string
@@ -428,6 +457,30 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      typing_status: {
+        Row: {
+          chat_partner_id: string
+          id: string
+          is_typing: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chat_partner_id: string
+          id?: string
+          is_typing?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chat_partner_id?: string
+          id?: string
+          is_typing?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       viewed_posts: {
         Row: {

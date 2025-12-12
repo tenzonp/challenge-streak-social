@@ -6,6 +6,9 @@ import { ChallengeResponse } from '@/hooks/useChallenges';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/hooks/useProfile';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useBookmarks } from '@/hooks/useBookmarks';
+import { toast } from 'sonner';
+import PostShareCard from './PostShareCard';
 
 interface ViralPostCardProps {
   post: ChallengeResponse;
@@ -17,14 +20,16 @@ interface ViralPostCardProps {
 
 const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPostCardProps) => {
   const { user } = useAuth();
+  const { isBookmarked, toggleBookmark } = useBookmarks();
   const [showFront, setShowFront] = useState(true);
   const [liked, setLiked] = useState(
     post.reactions?.some(r => r.user_id === user?.id && r.emoji === '❤️')
   );
-  const [saved, setSaved] = useState(false);
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const hasViewed = useRef(false);
+  const saved = isBookmarked(post.id);
 
   // Track when post comes into view
   useEffect(() => {
@@ -229,7 +234,12 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
             <MessageCircle className="w-6 h-6" />
           </Button>
           
-          <Button variant="ghost" size="icon" className="rounded-full">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="rounded-full"
+            onClick={() => setShowShareModal(true)}
+          >
             <Share2 className="w-6 h-6" />
           </Button>
         </div>
@@ -238,7 +248,10 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
           variant="ghost" 
           size="icon" 
           className={cn("rounded-full", saved && "text-primary")}
-          onClick={() => setSaved(!saved)}
+          onClick={async () => {
+            await toggleBookmark(post.id);
+            toast.success(saved ? 'Removed from vault' : 'Saved to vault! 🔒');
+          }}
         >
           <Bookmark className={cn("w-6 h-6", saved && "fill-current")} />
         </Button>
@@ -269,6 +282,16 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
           </div>
         </div>
       </div>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <PostShareCard 
+            post={post}
+            onClose={() => setShowShareModal(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.article>
   );
 };
