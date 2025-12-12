@@ -13,18 +13,20 @@ import ChatView from '@/components/woup/ChatView';
 import UserSearch from '@/components/woup/UserSearch';
 import CreatePostModal from '@/components/woup/CreatePostModal';
 import RewardAnimation from '@/components/woup/RewardAnimation';
+import UserProfileModal from '@/components/woup/UserProfileModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
 import { useChallenges, Challenge } from '@/hooks/useChallenges';
 import { useFeed } from '@/hooks/useFeed';
 import { useFriends } from '@/hooks/useFriends';
 import { useMessages } from '@/hooks/useMessages';
+import { useChallengeExpiry } from '@/hooks/useChallengeExpiry';
 import { useStreakRewards } from '@/hooks/useStreakRewards';
-import { Sparkles, Zap, Users, Loader2, Search, MessageCircle } from 'lucide-react';
+import { Sparkles, Zap, MessageCircle, Loader2, Search, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
-type Tab = 'feed' | 'challenges' | 'messages' | 'friends' | 'profile';
+type Tab = 'feed' | 'challenges' | 'profile';
 
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
@@ -34,6 +36,7 @@ const Index = () => {
   const { friends, allUsers, addFriend } = useFriends();
   const { conversations } = useMessages();
   const { showReward, setShowReward, checkAndClaimReward } = useStreakRewards();
+  useChallengeExpiry(); // Check for expired challenges
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>('feed');
@@ -43,6 +46,7 @@ const Index = () => {
   const [chatWith, setChatWith] = useState<Profile | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
 
   const unreadCount = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
 
@@ -89,9 +93,28 @@ const Index = () => {
 
   const handleTabChange = (tab: Tab) => setActiveTab(tab);
 
+  const handleViewProfile = (user: Profile) => {
+    setViewingProfile(user);
+  };
+
+  const handleChatFromProfile = (user: Profile) => {
+    setViewingProfile(null);
+    setChatWith(user);
+  };
+
+  const handleChallengeFromProfile = (userId: string) => {
+    setViewingProfile(null);
+    handleChallenge(userId);
+  };
+
   return (
-    <div className="min-h-screen bg-background pb-24 pt-20">
-      <Header onProfileClick={() => setActiveTab('profile')} pendingCount={pendingChallenges.length} />
+    <div className="min-h-screen bg-background pb-20 pt-20">
+      <Header 
+        onProfileClick={() => setActiveTab('profile')} 
+        pendingCount={pendingChallenges.length}
+        unreadMessages={unreadCount}
+        onMessagesClick={() => setChatWith(conversations[0]?.friend || null)}
+      />
       
       <main className="container mx-auto px-4">
         {activeTab === 'feed' && (
@@ -126,7 +149,12 @@ const Index = () => {
               ) : (
                 <div className="space-y-6">
                   {posts.map(post => (
-                    <FeedPost key={post.id} post={post} onReact={addReaction} />
+                    <FeedPost 
+                      key={post.id} 
+                      post={post} 
+                      onReact={addReaction} 
+                      onViewProfile={handleViewProfile}
+                    />
                   ))}
                 </div>
               )}
@@ -136,82 +164,100 @@ const Index = () => {
         
         {activeTab === 'challenges' && (
           <div className="space-y-6">
-            <div className="text-center py-8">
-              <div className="w-20 h-20 rounded-3xl gradient-secondary mx-auto mb-4 flex items-center justify-center animate-float">
-                <Zap className="w-10 h-10 text-secondary-foreground" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2">send a challenge</h2>
-              <p className="text-muted-foreground">pick a friend!</p>
-            </div>
-            <Button variant="outline" className="w-full gap-2" onClick={() => setShowSearch(true)}>
-              <Search className="w-4 h-4" /> find users
-            </Button>
-            <div className="space-y-3">
-              {friends.map(friend => (
-                <FriendCard key={friend.id} friend={friend} onChallenge={handleChallenge} onChat={setChatWith} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'messages' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">messages 💬</h2>
-            </div>
-            {conversations.length === 0 ? (
-              <div className="glass rounded-3xl p-8 text-center">
-                <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">no messages yet</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {conversations.map(conv => (
-                  <button
-                    key={conv.friend.user_id}
-                    onClick={() => setChatWith(conv.friend)}
-                    className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors"
-                  >
-                    <img src={conv.friend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.friend.user_id}`} className="w-12 h-12 rounded-xl" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold">{conv.friend.display_name}</p>
-                      <p className="text-sm text-muted-foreground truncate">{conv.lastMessage?.content}</p>
-                    </div>
-                    {conv.unreadCount > 0 && (
-                      <span className="w-6 h-6 rounded-full gradient-secondary text-xs font-bold flex items-center justify-center text-secondary-foreground">
-                        {conv.unreadCount}
+            {/* Messages section */}
+            {conversations.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5 text-secondary" />
+                    <h2 className="font-semibold">messages</h2>
+                    {unreadCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full gradient-secondary text-xs font-bold text-secondary-foreground">
+                        {unreadCount}
                       </span>
                     )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        
-        {activeTab === 'friends' && (
-          <div className="space-y-6">
-            <Button variant="outline" className="w-full gap-2" onClick={() => setShowSearch(true)}>
-              <Search className="w-4 h-4" /> find friends
-            </Button>
-            {friends.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold mb-4">your crew 👥</h2>
-                <div className="space-y-3">
-                  {friends.map(friend => (
-                    <FriendCard key={friend.id} friend={friend} onChallenge={handleChallenge} onChat={setChatWith} />
+                  </div>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4">
+                  {conversations.map(conv => (
+                    <button
+                      key={conv.friend.user_id}
+                      onClick={() => setChatWith(conv.friend)}
+                      className="flex flex-col items-center gap-1 shrink-0"
+                    >
+                      <div className="relative">
+                        <img 
+                          src={conv.friend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.friend.user_id}`} 
+                          className="w-14 h-14 rounded-2xl"
+                          style={{ 
+                            borderColor: conv.friend.color_primary || 'transparent',
+                            borderWidth: conv.friend.color_primary ? 2 : 0
+                          }}
+                        />
+                        {conv.unreadCount > 0 && (
+                          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-secondary text-[10px] font-bold flex items-center justify-center text-secondary-foreground">
+                            {conv.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground truncate max-w-14">{conv.friend.display_name.split(' ')[0]}</span>
+                    </button>
                   ))}
                 </div>
               </section>
             )}
+
+            {/* Friends section */}
             <section>
-              <h2 className="text-xl font-bold mb-4">discover ✨</h2>
-              <div className="space-y-3">
-                {allUsers.filter(u => !friends.some(f => f.user_id === u.user_id)).map(user => (
-                  <FriendCard key={user.id} friend={user} onChallenge={handleChallenge} showAddButton onAdd={handleAddFriend} />
-                ))}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  <h2 className="font-semibold">friends</h2>
+                </div>
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setShowSearch(true)}>
+                  <Search className="w-4 h-4" /> find
+                </Button>
               </div>
+              
+              {friends.length === 0 ? (
+                <div className="glass rounded-3xl p-8 text-center">
+                  <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground mb-4">no friends yet</p>
+                  <Button variant="neon" onClick={() => setShowSearch(true)}>find friends</Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {friends.map(friend => (
+                    <FriendCard 
+                      key={friend.id} 
+                      friend={friend} 
+                      onChallenge={handleChallenge} 
+                      onChat={setChatWith}
+                      onViewProfile={handleViewProfile}
+                    />
+                  ))}
+                </div>
+              )}
             </section>
+
+            {/* Discover section */}
+            {allUsers.filter(u => !friends.some(f => f.user_id === u.user_id)).length > 0 && (
+              <section>
+                <h2 className="font-semibold mb-4">discover ✨</h2>
+                <div className="space-y-3">
+                  {allUsers.filter(u => !friends.some(f => f.user_id === u.user_id)).slice(0, 5).map(user => (
+                    <FriendCard 
+                      key={user.id} 
+                      friend={user} 
+                      onChallenge={handleChallenge} 
+                      onViewProfile={handleViewProfile}
+                      showAddButton 
+                      onAdd={handleAddFriend} 
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
         
@@ -220,15 +266,23 @@ const Index = () => {
         )}
       </main>
       
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} unreadMessages={unreadCount} onCreatePost={() => setShowCreatePost(true)} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onCreatePost={() => setShowCreatePost(true)} />
       
       {selectedFriend && <SendChallengeModal friend={selectedFriend} onClose={() => setSelectedFriend(null)} onSend={handleSendChallenge} />}
       {activeChallenge && <CameraModal challenge={activeChallenge} onClose={() => setActiveChallenge(null)} onSubmit={handleSubmitResponse} />}
       {showProfileEdit && profile && <ProfileEditModal profile={profile} onClose={() => setShowProfileEdit(false)} />}
-      {chatWith && <ChatView friend={chatWith} onBack={() => setChatWith(null)} />}
+      {chatWith && <ChatView friend={chatWith} onBack={() => setChatWith(null)} onViewProfile={handleViewProfile} />}
       {showSearch && <UserSearch onChallenge={handleChallenge} onChat={setChatWith} onClose={() => setShowSearch(false)} />}
       {showCreatePost && <CreatePostModal onClose={() => setShowCreatePost(false)} />}
       {showReward && <RewardAnimation reward={showReward} onComplete={() => setShowReward(null)} />}
+      {viewingProfile && (
+        <UserProfileModal 
+          user={viewingProfile} 
+          onClose={() => setViewingProfile(null)} 
+          onChat={handleChatFromProfile}
+          onChallenge={handleChallengeFromProfile}
+        />
+      )}
     </div>
   );
 };

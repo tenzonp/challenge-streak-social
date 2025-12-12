@@ -4,13 +4,15 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { ChallengeResponse } from '@/hooks/useChallenges';
 import { useAuth } from '@/hooks/useAuth';
+import { Profile } from '@/hooks/useProfile';
 
 interface FeedPostProps {
   post: ChallengeResponse;
   onReact: (responseId: string, emoji: string) => void;
+  onViewProfile?: (user: Profile) => void;
 }
 
-const FeedPost = ({ post, onReact }: FeedPostProps) => {
+const FeedPost = ({ post, onReact, onViewProfile }: FeedPostProps) => {
   const { user } = useAuth();
   const [showFront, setShowFront] = useState(true);
   const [liked, setLiked] = useState(
@@ -40,17 +42,26 @@ const FeedPost = ({ post, onReact }: FeedPostProps) => {
   return (
     <article className="glass rounded-3xl overflow-hidden animate-scale-in">
       {/* Header */}
-      <div className="p-4 flex items-center justify-between">
+      <button 
+        onClick={() => onViewProfile?.(post.user!)}
+        className="w-full p-4 flex items-center justify-between text-left hover:bg-muted/20 transition-colors"
+      >
         <div className="flex items-center gap-3">
           <img 
             src={post.user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=default`} 
             alt={post.user?.display_name || 'User'}
-            className="w-10 h-10 rounded-xl border-2 border-primary/30"
+            className="w-10 h-10 rounded-xl border-2"
+            style={{ borderColor: post.user?.color_primary || 'transparent' }}
           />
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold">{post.user?.display_name || 'User'}</span>
-              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-neon-green/20 text-primary text-xs">
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs"
+                style={{ 
+                  background: `${post.user?.color_primary || '#4ade80'}20`,
+                  color: post.user?.color_primary || '#4ade80'
+                }}
+              >
                 <Flame className="w-3 h-3" />
                 <span>{post.user?.streak || 0}</span>
               </div>
@@ -65,7 +76,7 @@ const FeedPost = ({ post, onReact }: FeedPostProps) => {
             {post.challenge.challenge_text}
           </div>
         )}
-      </div>
+      </button>
       
       {/* Dual Photo Display */}
       <div 
