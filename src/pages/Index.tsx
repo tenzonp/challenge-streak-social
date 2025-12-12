@@ -14,6 +14,7 @@ import UserSearch from '@/components/woup/UserSearch';
 import CreatePostModal from '@/components/woup/CreatePostModal';
 import RewardAnimation from '@/components/woup/RewardAnimation';
 import UserProfileModal from '@/components/woup/UserProfileModal';
+import StreakLeaderboard from '@/components/woup/StreakLeaderboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
 import { useChallenges, Challenge } from '@/hooks/useChallenges';
@@ -47,6 +48,7 @@ const Index = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const unreadCount = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
 
@@ -262,7 +264,11 @@ const Index = () => {
         )}
         
         {activeTab === 'profile' && profile && (
-          <ProfileCard profile={profile} onEdit={() => setShowProfileEdit(true)} />
+          <ProfileCard 
+            profile={profile} 
+            onEdit={() => setShowProfileEdit(true)} 
+            onShowLeaderboard={() => setShowLeaderboard(true)}
+          />
         )}
       </main>
       
@@ -281,6 +287,12 @@ const Index = () => {
           onClose={() => setViewingProfile(null)} 
           onChat={handleChatFromProfile}
           onChallenge={handleChallengeFromProfile}
+        />
+      )}
+      {showLeaderboard && (
+        <StreakLeaderboard 
+          onClose={() => setShowLeaderboard(false)}
+          onViewProfile={handleViewProfile}
         />
       )}
     </div>
