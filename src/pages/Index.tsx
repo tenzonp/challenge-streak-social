@@ -61,7 +61,7 @@ const Index = () => {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [videoCallWith, setVideoCallWith] = useState<Profile | null>(null);
 
-  const unreadCount = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
+  const unreadCount = conversations?.reduce((acc, c) => acc + c.unreadCount, 0) || 0;
 
   if (!authLoading && !user) {
     return <Navigate to="/auth" replace />;
