@@ -40,7 +40,7 @@ const NotificationSettings = () => {
 
   const fetchPreferences = async () => {
     const { data, error } = await supabase
-      .from('notification_preferences' as any)
+      .from('notification_preferences')
       .select('*')
       .eq('user_id', user!.id)
       .single();
@@ -49,9 +49,9 @@ const NotificationSettings = () => {
       setPrefs(data as unknown as NotificationPrefs);
     } else if (error?.code === 'PGRST116') {
       // No preferences yet, create default
-      await supabase.from('notification_preferences' as any).insert({
+      await supabase.from('notification_preferences').insert({
         user_id: user!.id,
-      } as any);
+      });
     }
     setLoading(false);
   };
@@ -61,11 +61,11 @@ const NotificationSettings = () => {
     setPrefs(prev => ({ ...prev, [key]: value }));
 
     const { error } = await supabase
-      .from('notification_preferences' as any)
+      .from('notification_preferences')
       .upsert({
         user_id: user!.id,
         [key]: value,
-      } as any);
+      });
 
     if (error) {
       toast({ title: 'Failed to save', variant: 'destructive' });

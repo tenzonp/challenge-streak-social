@@ -172,16 +172,50 @@ export type Database = {
           },
         ]
       }
+      message_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           audio_duration: number | null
           content: string
           created_at: string
           id: string
+          is_reported: boolean | null
           media_url: string | null
           message_type: string
           read: boolean
           receiver_id: string
+          reply_to_id: string | null
           sender_id: string
           snap_views_remaining: number | null
           status: string
@@ -191,10 +225,12 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          is_reported?: boolean | null
           media_url?: string | null
           message_type?: string
           read?: boolean
           receiver_id: string
+          reply_to_id?: string | null
           sender_id: string
           snap_views_remaining?: number | null
           status?: string
@@ -204,10 +240,12 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          is_reported?: boolean | null
           media_url?: string | null
           message_type?: string
           read?: boolean
           receiver_id?: string
+          reply_to_id?: string | null
           sender_id?: string
           snap_views_remaining?: number | null
           status?: string
@@ -219,6 +257,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "messages_sender_id_fkey"
@@ -399,6 +444,33 @@ export type Database = {
           user_id?: string
           username?: string
           vibe?: string | null
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth_key: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh_key: string
+          user_id: string
+        }
+        Insert: {
+          auth_key: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh_key: string
+          user_id: string
+        }
+        Update: {
+          auth_key?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh_key?: string
+          user_id?: string
         }
         Relationships: []
       }
