@@ -1,1 +1,13 @@
 project_id = "iaftjgxbypwxzmuepetq"
+
+[functions.push-notifications]
+verify_jwt = true
+
+[functions.send-notification]
+verify_jwt = false
+
+[functions.spotify-auth]
+verify_jwt = true
+
+[functions.spotify-now-playing]
+verify_jwt = true

@@ -8,7 +8,7 @@ import { usePosts, Post } from '@/hooks/usePosts';
 import { supabase } from '@/integrations/supabase/client';
 import { useChallenges, ChallengeResponse } from '@/hooks/useChallenges';
 import SpotifyConnect from './SpotifyConnect';
-
+import { StreakBadges, DayStreakCounter } from './StreakBadges';
 interface ProfileCardProps {
   profile: Profile;
   onEdit: () => void;
@@ -82,6 +82,10 @@ const ProfileCard = ({ profile, onEdit, onShowLeaderboard }: ProfileCardProps) =
           )}
         </div>
       </div>
+
+      {/* Day Streak Counter with Badges */}
+      <DayStreakCounter streak={profile.streak} size="md" />
+      <StreakBadges streak={profile.streak} longestStreak={profile.longest_streak} size="md" />
 
       {/* Spotify */}
       <SpotifyConnect profile={profile} />
