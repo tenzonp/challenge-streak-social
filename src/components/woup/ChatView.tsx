@@ -5,11 +5,14 @@ import { Profile } from '@/hooks/useProfile';
 import { Message, useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
+import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChatLockScreen, ChatLockSettings, useChatLock } from './ChatLock';
 import SnapEditor from './SnapEditor';
+import TypingIndicator from './TypingIndicator';
+import ARFaceFilters from './ARFaceFilters';
 
 interface ChatViewProps {
   friend: Profile;
@@ -23,15 +26,16 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   const { sendMessage, getMessages } = useMessages();
   const { isRecording, duration, startRecording, stopRecording, cancelRecording, uploadAudio, formatDuration } = useAudioRecorder();
   const { isLocked, hasPassword } = useChatLock(friend.user_id);
+  const { isPartnerTyping, handleTyping, stopTyping } = useTypingIndicator(friend.user_id);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showLockSettings, setShowLockSettings] = useState(false);
   const [snapImage, setSnapImage] = useState<string | null>(null);
+  const [showARCamera, setShowARCamera] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMessages = async () => {
     const msgs = await getMessages(friend.user_id);
@@ -63,10 +67,16 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
+    stopTyping();
     setSending(true);
     await sendMessage(friend.user_id, input.trim());
     setInput('');
     setSending(false);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+    handleTyping();
   };
 
   const handleSendAudio = async () => {
@@ -83,15 +93,9 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
     }
   };
 
-  const handleSnapCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSnapImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleARCapture = (imageUrl: string) => {
+    setShowARCamera(false);
+    setSnapImage(imageUrl);
   };
 
   const handleSendSnap = async (editedUrl: string) => {
@@ -205,6 +209,17 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
             </div>
           </div>
         ))}
+
+        {/* Typing Indicator */}
+        <AnimatePresence>
+          {isPartnerTyping && (
+            <TypingIndicator 
+              displayName={friend.display_name} 
+              colorPrimary={friend.color_primary || undefined}
+            />
+          )}
+        </AnimatePresence>
+        
         <div ref={messagesEndRef} />
       </div>
 
@@ -227,14 +242,21 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           ) : (
             <motion.div key="input" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               className="flex items-center gap-2">
-              <input type="file" ref={fileInputRef} accept="image/*" capture="environment" className="hidden" onChange={handleSnapCapture} />
-              <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={() => fileInputRef.current?.click()}>
+              <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={() => setShowARCamera(true)}>
                 <Camera className="w-5 h-5" />
               </Button>
               <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={startRecording}><Mic className="w-5 h-5" /></Button>
               <div className="flex-1 flex items-center gap-2 bg-muted/50 rounded-2xl p-1.5 border border-border/30">
-                <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder={`message ${friend.display_name.split(' ')[0]}...`} className="flex-1 px-3 py-2 bg-transparent outline-none text-sm" maxLength={500} />
+                <input 
+                  ref={inputRef} 
+                  value={input} 
+                  onChange={handleInputChange} 
+                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                  onBlur={stopTyping}
+                  placeholder={`message ${friend.display_name.split(' ')[0]}...`} 
+                  className="flex-1 px-3 py-2 bg-transparent outline-none text-sm" 
+                  maxLength={500} 
+                />
                 <Button variant="neon" size="sm" onClick={handleSend} disabled={!input.trim() || sending} className="rounded-xl px-4"><Send className="w-4 h-4" /></Button>
               </div>
             </motion.div>
@@ -266,6 +288,16 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
             imageUrl={snapImage} 
             onSend={handleSendSnap} 
             onClose={() => setSnapImage(null)} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* AR Camera */}
+      <AnimatePresence>
+        {showARCamera && (
+          <ARFaceFilters 
+            onCapture={handleARCapture}
+            onClose={() => setShowARCamera(false)}
           />
         )}
       </AnimatePresence>
