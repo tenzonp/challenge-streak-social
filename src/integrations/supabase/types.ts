@@ -174,28 +174,43 @@ export type Database = {
       }
       messages: {
         Row: {
+          audio_duration: number | null
           content: string
           created_at: string
           id: string
+          media_url: string | null
+          message_type: string
           read: boolean
           receiver_id: string
           sender_id: string
+          snap_views_remaining: number | null
+          status: string
         }
         Insert: {
+          audio_duration?: number | null
           content: string
           created_at?: string
           id?: string
+          media_url?: string | null
+          message_type?: string
           read?: boolean
           receiver_id: string
           sender_id: string
+          snap_views_remaining?: number | null
+          status?: string
         }
         Update: {
+          audio_duration?: number | null
           content?: string
           created_at?: string
           id?: string
+          media_url?: string | null
+          message_type?: string
           read?: boolean
           receiver_id?: string
           sender_id?: string
+          snap_views_remaining?: number | null
+          status?: string
         }
         Relationships: [
           {

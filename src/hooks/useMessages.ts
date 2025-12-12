@@ -3,6 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/hooks/useProfile';
 
+export type MessageType = 'text' | 'snap' | 'voice';
+export type MessageStatus = 'sent' | 'delivered' | 'read';
+
 export interface Message {
   id: string;
   sender_id: string;
@@ -11,6 +14,11 @@ export interface Message {
   read: boolean;
   created_at: string;
   sender?: Profile;
+  message_type: MessageType;
+  status: MessageStatus;
+  media_url?: string | null;
+  snap_views_remaining?: number | null;
+  audio_duration?: number | null;
 }
 
 export interface Conversation {
@@ -79,7 +87,7 @@ export const useMessages = () => {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'messages',
         },
@@ -94,7 +102,13 @@ export const useMessages = () => {
     };
   }, [user, fetchConversations]);
 
-  const sendMessage = async (receiverId: string, content: string) => {
+  const sendMessage = async (
+    receiverId: string, 
+    content: string, 
+    messageType: MessageType = 'text',
+    mediaUrl?: string,
+    audioDuration?: number
+  ) => {
     if (!user) return { error: new Error('Not authenticated') };
 
     const { error } = await supabase
@@ -103,6 +117,11 @@ export const useMessages = () => {
         sender_id: user.id,
         receiver_id: receiverId,
         content,
+        message_type: messageType,
+        status: 'sent',
+        media_url: mediaUrl,
+        snap_views_remaining: messageType === 'snap' ? 3 : null,
+        audio_duration: audioDuration,
       });
 
     if (!error) {
@@ -124,15 +143,49 @@ export const useMessages = () => {
       .or(`and(sender_id.eq.${user.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${user.id})`)
       .order('created_at', { ascending: true });
 
-    // Mark as read
+    // Mark as read and update status
     await supabase
       .from('messages')
-      .update({ read: true })
+      .update({ read: true, status: 'read' })
       .eq('sender_id', partnerId)
       .eq('receiver_id', user.id);
 
     return (data || []) as Message[];
   };
 
-  return { conversations, loading, sendMessage, getMessages, refetch: fetchConversations };
+  const markAsDelivered = async (messageId: string) => {
+    await supabase
+      .from('messages')
+      .update({ status: 'delivered' })
+      .eq('id', messageId)
+      .eq('status', 'sent');
+  };
+
+  const decrementSnapViews = async (messageId: string): Promise<number | null> => {
+    const { data } = await supabase
+      .from('messages')
+      .select('snap_views_remaining')
+      .eq('id', messageId)
+      .single();
+
+    if (data && data.snap_views_remaining && data.snap_views_remaining > 0) {
+      const newCount = data.snap_views_remaining - 1;
+      await supabase
+        .from('messages')
+        .update({ snap_views_remaining: newCount })
+        .eq('id', messageId);
+      return newCount;
+    }
+    return data?.snap_views_remaining ?? null;
+  };
+
+  return { 
+    conversations, 
+    loading, 
+    sendMessage, 
+    getMessages, 
+    refetch: fetchConversations,
+    markAsDelivered,
+    decrementSnapViews,
+  };
 };
