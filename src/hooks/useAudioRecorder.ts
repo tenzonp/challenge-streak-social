@@ -83,11 +83,11 @@ export const useAudioRecorder = () => {
   }, []);
 
   const uploadAudio = async (blob: Blob, userId: string): Promise<string | null> => {
-    const fileName = `audio_${userId}_${Date.now()}.webm`;
+    const fileName = `voice/${userId}/${Date.now()}.webm`;
     
     const { error } = await supabase.storage
-      .from('challenge-photos')
-      .upload(`audio/${fileName}`, blob, {
+      .from('chat-media')
+      .upload(fileName, blob, {
         contentType: 'audio/webm',
         upsert: true
       });
@@ -98,8 +98,8 @@ export const useAudioRecorder = () => {
     }
 
     const { data: { publicUrl } } = supabase.storage
-      .from('challenge-photos')
-      .getPublicUrl(`audio/${fileName}`);
+      .from('chat-media')
+      .getPublicUrl(fileName);
 
     return publicUrl;
   };

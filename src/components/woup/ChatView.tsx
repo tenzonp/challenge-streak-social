@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Lock, Settings, Image, Sparkles } from 'lucide-react';
+import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Lock, Sparkles, Check, CheckCheck, Eye, Play, Pause, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { Message, useMessages } from '@/hooks/useMessages';
@@ -13,6 +13,7 @@ import { ChatLockScreen, ChatLockSettings, useChatLock } from './ChatLock';
 import SnapEditor from './SnapEditor';
 import TypingIndicator from './TypingIndicator';
 import ARFaceFilters from './ARFaceFilters';
+import { toast } from 'sonner';
 
 interface ChatViewProps {
   friend: Profile;
@@ -21,9 +22,177 @@ interface ChatViewProps {
   onVideoCall?: (friend: Profile) => void;
 }
 
+// Status indicator component
+const MessageStatus = ({ status, isMe }: { status: string; isMe: boolean }) => {
+  if (!isMe) return null;
+  
+  return (
+    <span className="ml-1 inline-flex">
+      {status === 'sent' && <Check className="w-3 h-3 opacity-60" />}
+      {status === 'delivered' && <CheckCheck className="w-3 h-3 opacity-60" />}
+      {status === 'read' && <CheckCheck className="w-3 h-3 text-primary" />}
+    </span>
+  );
+};
+
+// Snap message component with view limit
+const SnapMessage = ({ 
+  message, 
+  isMe, 
+  onView, 
+  colorPrimary, 
+  colorSecondary 
+}: { 
+  message: Message; 
+  isMe: boolean; 
+  onView: () => void;
+  colorPrimary?: string;
+  colorSecondary?: string;
+}) => {
+  const [viewing, setViewing] = useState(false);
+  const viewsLeft = message.snap_views_remaining ?? 0;
+  const canView = viewsLeft > 0;
+
+  const handleView = () => {
+    if (!canView || isMe) return;
+    setViewing(true);
+    onView();
+    setTimeout(() => setViewing(false), 5000); // Auto close after 5s
+  };
+
+  if (viewing && message.media_url) {
+    return (
+      <motion.div 
+        initial={{ scale: 0.9 }}
+        animate={{ scale: 1 }}
+        className="fixed inset-0 z-50 bg-black flex items-center justify-center"
+        onClick={() => setViewing(false)}
+      >
+        <img src={message.media_url} alt="Snap" className="max-w-full max-h-full object-contain" />
+        <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md text-white text-sm">
+          {viewsLeft - 1} views left
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div 
+      whileTap={canView && !isMe ? { scale: 0.95 } : undefined}
+      onClick={handleView}
+      className={cn(
+        "relative w-32 h-44 rounded-2xl overflow-hidden cursor-pointer",
+        !canView && "opacity-50"
+      )}
+      style={{ 
+        background: isMe 
+          ? `linear-gradient(135deg, ${colorPrimary || 'hsl(var(--primary))'}, ${colorSecondary || 'hsl(var(--secondary))'})` 
+          : 'hsl(var(--muted))' 
+      }}
+    >
+      {message.media_url ? (
+        <img src={message.media_url} alt="Snap" className="w-full h-full object-cover blur-xl" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <ImageIcon className="w-8 h-8 opacity-50" />
+        </div>
+      )}
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
+        <Eye className="w-8 h-8 text-white mb-2" />
+        <span className="text-white text-sm font-bold">
+          {isMe ? `${viewsLeft} views left` : canView ? 'Tap to view' : 'Expired'}
+        </span>
+      </div>
+    </motion.div>
+  );
+};
+
+// Voice message component with playback
+const VoiceMessage = ({ 
+  message, 
+  isMe,
+  colorPrimary,
+  colorSecondary
+}: { 
+  message: Message; 
+  isMe: boolean;
+  colorPrimary?: string;
+  colorSecondary?: string;
+}) => {
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const togglePlay = () => {
+    if (!message.media_url) {
+      toast.error('Audio not available');
+      return;
+    }
+    
+    if (!audioRef.current) {
+      audioRef.current = new Audio(message.media_url);
+      audioRef.current.onended = () => {
+        setPlaying(false);
+        setProgress(0);
+      };
+      audioRef.current.ontimeupdate = () => {
+        if (audioRef.current) {
+          setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+        }
+      };
+    }
+
+    if (playing) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setPlaying(!playing);
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div 
+      className={cn(
+        "flex items-center gap-3 px-4 py-3 rounded-3xl min-w-[180px]",
+        isMe ? "rounded-br-lg" : "rounded-bl-lg bg-muted/80"
+      )}
+      style={isMe ? { 
+        background: `linear-gradient(135deg, ${colorPrimary || 'hsl(var(--primary))'}, ${colorSecondary || 'hsl(var(--secondary))'})`,
+        color: 'white' 
+      } : undefined}
+    >
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className="rounded-full w-10 h-10 shrink-0 bg-white/20"
+        onClick={togglePlay}
+      >
+        {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+      </Button>
+      <div className="flex-1">
+        <div className="h-1.5 rounded-full bg-white/30 overflow-hidden">
+          <motion.div 
+            className="h-full bg-white/80" 
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <span className="text-xs opacity-70 mt-1 block">
+          {message.audio_duration ? formatDuration(message.audio_duration) : '0:00'}
+        </span>
+      </div>
+    </div>
+  );
+};
+
 const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps) => {
   const { user } = useAuth();
-  const { sendMessage, getMessages } = useMessages();
+  const { sendMessage, getMessages, decrementSnapViews } = useMessages();
   const { isRecording, duration, startRecording, stopRecording, cancelRecording, uploadAudio, formatDuration } = useAudioRecorder();
   const { isLocked, hasPassword } = useChatLock(friend.user_id);
   const { isPartnerTyping, handleTyping, stopTyping } = useTypingIndicator(friend.user_id);
@@ -49,11 +218,15 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   useEffect(() => {
     const channel = supabase
       .channel(`chat-${friend.user_id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
         const newMsg = payload.new as any;
-        if ((newMsg.sender_id === friend.user_id && newMsg.receiver_id === user?.id) ||
-            (newMsg.sender_id === user?.id && newMsg.receiver_id === friend.user_id)) {
-          setMessages(prev => [...prev, newMsg]);
+        if (payload.eventType === 'INSERT') {
+          if ((newMsg.sender_id === friend.user_id && newMsg.receiver_id === user?.id) ||
+              (newMsg.sender_id === user?.id && newMsg.receiver_id === friend.user_id)) {
+            setMessages(prev => [...prev, newMsg]);
+          }
+        } else if (payload.eventType === 'UPDATE') {
+          setMessages(prev => prev.map(m => m.id === newMsg.id ? { ...m, ...newMsg } : m));
         }
       })
       .subscribe();
@@ -69,7 +242,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
     if (!input.trim() || sending) return;
     stopTyping();
     setSending(true);
-    await sendMessage(friend.user_id, input.trim());
+    await sendMessage(friend.user_id, input.trim(), 'text');
     setInput('');
     setSending(false);
   };
@@ -86,8 +259,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
       setSending(true);
       const url = await uploadAudio(result.blob, user.id);
       if (url) {
-        // For now, send as text with audio indicator
-        await sendMessage(friend.user_id, `🎵 Voice message (${formatDuration(result.duration)})`);
+        await sendMessage(friend.user_id, '🎵 Voice message', 'voice', url, Math.round(result.duration));
       }
       setSending(false);
     }
@@ -99,8 +271,35 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   };
 
   const handleSendSnap = async (editedUrl: string) => {
-    await sendMessage(friend.user_id, `📸 Sent a snap!`);
+    // Upload snap to storage first
+    if (!user) return;
+    try {
+      const response = await fetch(editedUrl);
+      const blob = await response.blob();
+      const fileName = `snaps/${user.id}/${Date.now()}.jpg`;
+      
+      const { data, error } = await supabase.storage
+        .from('chat-media')
+        .upload(fileName, blob, { contentType: 'image/jpeg' });
+
+      if (error) {
+        // If bucket doesn't exist, send without URL
+        await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap');
+      } else {
+        const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(fileName);
+        await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap', urlData.publicUrl);
+      }
+    } catch {
+      await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap');
+    }
     setSnapImage(null);
+  };
+
+  const handleViewSnap = async (messageId: string) => {
+    const remaining = await decrementSnapViews(messageId);
+    if (remaining === 0) {
+      toast('Snap expired! 💨');
+    }
   };
 
   // Show lock screen if locked and not unlocked
@@ -127,6 +326,64 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
     return groups;
   }, {} as Record<string, Message[]>);
 
+  const renderMessage = (msg: Message, i: number) => {
+    const isMe = msg.sender_id === user?.id;
+    const messageType = msg.message_type || 'text';
+
+    return (
+      <motion.div 
+        key={msg.id} 
+        initial={{ opacity: 0, y: 10 }} 
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: i * 0.02 }} 
+        className={cn("flex", isMe ? "justify-end" : "justify-start")}
+      >
+        {messageType === 'snap' ? (
+          <div className="flex flex-col items-end gap-1">
+            <SnapMessage 
+              message={msg} 
+              isMe={isMe} 
+              onView={() => handleViewSnap(msg.id)}
+              colorPrimary={friend.color_primary || undefined}
+              colorSecondary={friend.color_secondary || undefined}
+            />
+            <div className="flex items-center text-[10px] opacity-60 px-2">
+              {formatTime(msg.created_at)}
+              <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+            </div>
+          </div>
+        ) : messageType === 'voice' ? (
+          <div className="flex flex-col gap-1">
+            <VoiceMessage 
+              message={msg} 
+              isMe={isMe}
+              colorPrimary={friend.color_primary || undefined}
+              colorSecondary={friend.color_secondary || undefined}
+            />
+            <div className={cn("flex items-center text-[10px] opacity-60 px-2", isMe && "justify-end")}>
+              {formatTime(msg.created_at)}
+              <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+            </div>
+          </div>
+        ) : (
+          <div 
+            className={cn("max-w-[75%] px-4 py-2.5 rounded-3xl", isMe ? "rounded-br-lg" : "rounded-bl-lg bg-muted/80")}
+            style={isMe ? { 
+              background: `linear-gradient(135deg, ${friend.color_primary || 'hsl(var(--primary))'}, ${friend.color_secondary || 'hsl(var(--secondary))'})`, 
+              color: 'white' 
+            } : undefined}
+          >
+            <p className="break-words text-[15px]">{msg.content}</p>
+            <div className={cn("flex items-center text-[10px] mt-1 opacity-60", isMe && "justify-end")}>
+              {formatTime(msg.created_at)}
+              <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+            </div>
+          </div>
+        )}
+      </motion.div>
+    );
+  };
+
   return (
     <motion.div 
       initial={{ x: '100%' }} 
@@ -135,7 +392,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
       transition={{ type: 'spring', damping: 25 }}
       className="fixed inset-0 z-50 bg-background flex flex-col"
     >
-      {/* Spicy Header */}
+      {/* Header */}
       <div className="border-b border-border/30 safe-top"
         style={{ background: `linear-gradient(135deg, ${friend.color_primary || '#4ade80'}20, ${friend.color_secondary || '#f472b6'}20)` }}>
         <div className="flex items-center gap-2 p-3">
@@ -173,6 +430,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           </div>
         </div>
       </div>
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
@@ -193,19 +451,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
               <span className="px-3 py-1 rounded-full glass text-xs font-medium">{date}</span>
             </div>
             <div className="space-y-2">
-              {msgs.map((msg, i) => {
-                const isMe = msg.sender_id === user?.id;
-                return (
-                  <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.02 }} className={cn("flex", isMe ? "justify-end" : "justify-start")}>
-                    <div className={cn("max-w-[75%] px-4 py-2.5 rounded-3xl", isMe ? "rounded-br-lg" : "rounded-bl-lg bg-muted/80")}
-                      style={isMe ? { background: `linear-gradient(135deg, ${friend.color_primary || 'hsl(var(--primary))'}, ${friend.color_secondary || 'hsl(var(--secondary))'})`, color: 'white' } : undefined}>
-                      <p className="break-words text-[15px]">{msg.content}</p>
-                      <p className={cn("text-[10px] mt-1 opacity-60", isMe && "text-right")}>{formatTime(msg.created_at)}</p>
-                    </div>
-                  </motion.div>
-                );
-              })}
+              {msgs.map((msg, i) => renderMessage(msg, i))}
             </div>
           </div>
         ))}
