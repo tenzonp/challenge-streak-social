@@ -17,6 +17,14 @@ interface NotificationPrefs {
   achievement_unlocks_enabled: boolean;
 }
 
+interface ActivityItem {
+  id: string;
+  type: 'challenge' | 'message' | 'friend_request';
+  title: string;
+  description: string;
+  created_at: string;
+}
+
 const NotificationSettings = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -32,10 +40,13 @@ const NotificationSettings = () => {
     competition_updates_enabled: true,
     achievement_unlocks_enabled: true,
   });
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     fetchPreferences();
+    fetchActivity();
   }, [user]);
 
   const fetchPreferences = async () => {
@@ -54,6 +65,97 @@ const NotificationSettings = () => {
       });
     }
     setLoading(false);
+  };
+
+  const fetchActivity = async () => {
+    if (!user) return;
+    setActivityLoading(true);
+
+    const [challengesRes, messagesRes, friendsRes] = await Promise.all([
+      supabase
+        .from('challenges')
+        .select(`
+          id,
+          challenge_text,
+          created_at,
+          from_profile:profiles!challenges_from_user_id_fkey(display_name, username)
+        `)
+        .eq('to_user_id', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase
+        .from('messages')
+        .select(`
+          id,
+          content,
+          created_at,
+          read,
+          sender:profiles!messages_sender_id_fkey(display_name, username)
+        `)
+        .eq('receiver_id', user.id)
+        .eq('read', false)
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase
+        .from('friendships')
+        .select(`
+          id,
+          created_at,
+          status,
+          user:profiles!friendships_user_id_fkey(display_name, username)
+        `)
+        .eq('friend_id', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ]);
+
+    const items: ActivityItem[] = [];
+
+    if (challengesRes.data) {
+      challengesRes.data.forEach((c: any) => {
+        items.push({
+          id: `challenge-${c.id}`,
+          type: 'challenge',
+          title: 'New challenge',
+          description: c.from_profile?.display_name
+            ? `${c.from_profile.display_name} sent you: "${c.challenge_text}"`
+            : c.challenge_text,
+          created_at: c.created_at,
+        });
+      });
+    }
+
+    if (messagesRes.data) {
+      messagesRes.data.forEach((m: any) => {
+        items.push({
+          id: `message-${m.id}`,
+          type: 'message',
+          title: m.sender?.display_name ? `New message from ${m.sender.display_name}` : 'New message',
+          description: m.content,
+          created_at: m.created_at,
+        });
+      });
+    }
+
+    if (friendsRes.data) {
+      friendsRes.data.forEach((f: any) => {
+        items.push({
+          id: `friend-${f.id}`,
+          type: 'friend_request',
+          title: 'Friend request',
+          description: f.user?.display_name
+            ? `${f.user.display_name} wants to connect`
+            : 'New friend request',
+          created_at: f.created_at,
+        });
+      });
+    }
+
+    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    setActivity(items);
+    setActivityLoading(false);
   };
 
   const updatePref = async (key: keyof NotificationPrefs, value: boolean) => {
@@ -81,7 +183,11 @@ const NotificationSettings = () => {
     } else {
       const result = await subscribe();
       if (result?.error) {
-        toast({ title: result.error, variant: 'destructive' });
+        const description =
+          result.error === 'Permission denied'
+            ? 'Notifications are blocked in your browser settings. Enable them to turn on push.'
+            : result.error;
+        toast({ title: 'Failed to enable push', description, variant: 'destructive' });
       } else {
         toast({ title: 'Push notifications enabled! 🔔' });
       }
@@ -113,11 +219,55 @@ const NotificationSettings = () => {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-xl font-bold">Notification Settings</h1>
+          <h1 className="text-xl font-bold">Notifications</h1>
         </div>
       </header>
 
       <main className="container mx-auto px-4 pt-24 pb-8 space-y-6">
+        {/* Activity Feed */}
+        <section className="glass rounded-3xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-lg">Activity</h2>
+              <p className="text-sm text-muted-foreground">
+                New challenges, messages, and friend requests
+              </p>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full bg-muted/60">
+              {activity.length} new
+            </span>
+          </div>
+
+          {activityLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            </div>
+          ) : activity.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-2">
+              You're all caught up. ✨
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {activity.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-start gap-3 p-3 rounded-2xl bg-muted/40"
+                >
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-muted">
+                    {item.type === 'challenge' && <Flame className="w-4 h-4 text-primary" />}
+                    {item.type === 'message' && <MessageCircle className="w-4 h-4 text-primary" />}
+                    {item.type === 'friend_request' && <Users className="w-4 h-4 text-primary" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{item.title}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* Push Notifications Master Toggle */}
         <section className="glass rounded-3xl p-6">
           <div className="flex items-center justify-between">
@@ -128,19 +278,23 @@ const NotificationSettings = () => {
               <div>
                 <h2 className="font-semibold text-lg">Push Notifications</h2>
                 <p className="text-sm text-muted-foreground">
-                  {!isSupported ? 'Not supported in this browser' : 
-                   permission === 'denied' ? 'Blocked by browser' :
-                   isSubscribed ? 'Enabled' : 'Disabled'}
+                  {!isSupported
+                    ? 'Not supported in this browser'
+                    : permission === 'denied'
+                      ? 'Blocked by browser'
+                      : isSubscribed
+                        ? 'Enabled'
+                        : 'Disabled'}
                 </p>
               </div>
             </div>
-            <Switch 
-              checked={isSubscribed} 
+            <Switch
+              checked={isSubscribed}
               onCheckedChange={handlePushToggle}
               disabled={!isSupported || permission === 'denied'}
             />
           </div>
-          
+
           {permission === 'denied' && (
             <p className="mt-4 text-sm text-destructive bg-destructive/10 p-3 rounded-xl">
               Push notifications are blocked. Enable them in your browser settings.
@@ -154,7 +308,7 @@ const NotificationSettings = () => {
             <h2 className="font-semibold">Notification Types</h2>
             <p className="text-sm text-muted-foreground">Choose what you want to be notified about</p>
           </div>
-          
+
           <div className="divide-y divide-border/30">
             {notificationTypes.map(({ key, icon: Icon, label, desc }) => (
               <div key={key} className="p-4 flex items-center justify-between">
@@ -167,8 +321,8 @@ const NotificationSettings = () => {
                     <p className="text-xs text-muted-foreground">{desc}</p>
                   </div>
                 </div>
-                <Switch 
-                  checked={prefs[key]} 
+                <Switch
+                  checked={prefs[key]}
                   onCheckedChange={(v) => updatePref(key, v)}
                   disabled={saving || !isSubscribed}
                 />

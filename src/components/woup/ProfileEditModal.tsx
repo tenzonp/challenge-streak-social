@@ -33,10 +33,8 @@ const ProfileEditModal = ({ profile, onClose }: ProfileEditModalProps) => {
   const [colorPrimary, setColorPrimary] = useState(profile.color_primary || '#4ade80');
   const [colorSecondary, setColorSecondary] = useState(profile.color_secondary || '#f472b6');
   const [interests, setInterests] = useState<string[]>(profile.interests || []);
-  const [currentSong, setCurrentSong] = useState(profile.current_song || '');
-  const [currentArtist, setCurrentArtist] = useState(profile.current_artist || '');
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'info' | 'colors' | 'interests' | 'music'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'colors' | 'interests'>('info');
 
   const toggleInterest = (interest: string) => {
     setInterests(prev => 
@@ -55,8 +53,6 @@ const ProfileEditModal = ({ profile, onClose }: ProfileEditModalProps) => {
       color_primary: colorPrimary,
       color_secondary: colorSecondary,
       interests,
-      current_song: currentSong || null,
-      current_artist: currentArtist || null,
     });
 
     if (error) {
@@ -112,7 +108,6 @@ const ProfileEditModal = ({ profile, onClose }: ProfileEditModalProps) => {
             { id: 'info', icon: Camera, label: 'Info' },
             { id: 'colors', icon: Palette, label: 'Colors' },
             { id: 'interests', icon: Tag, label: 'Interests' },
-            { id: 'music', icon: Music, label: 'Music' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -240,45 +235,6 @@ const ProfileEditModal = ({ profile, onClose }: ProfileEditModalProps) => {
             </>
           )}
 
-          {activeTab === 'music' && (
-            <>
-              <p className="text-sm text-muted-foreground mb-4">what are you listening to?</p>
-              
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">song name</label>
-                <input
-                  value={currentSong}
-                  onChange={e => setCurrentSong(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-muted/50 border border-border focus:border-primary outline-none"
-                  placeholder="song title..."
-                  maxLength={100}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">artist</label>
-                <input
-                  value={currentArtist}
-                  onChange={e => setCurrentArtist(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-muted/50 border border-border focus:border-primary outline-none"
-                  placeholder="artist name..."
-                  maxLength={100}
-                />
-              </div>
-
-              {currentSong && (
-                <div className="p-4 rounded-2xl bg-muted/50 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl gradient-secondary flex items-center justify-center">
-                    <Music className="w-6 h-6 text-secondary-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold truncate">{currentSong}</p>
-                    <p className="text-sm text-muted-foreground truncate">{currentArtist}</p>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
         </div>
 
         {/* Save button */}

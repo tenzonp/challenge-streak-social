@@ -483,7 +483,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
 
           {/* Message actions */}
           <div className={cn(
-            "absolute top-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10",
+            "absolute top-0 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10",
             isMe ? "left-0 -translate-x-full pr-2" : "right-0 translate-x-full pl-2"
           )}>
             <Button
