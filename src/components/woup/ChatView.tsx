@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Lock, Sparkles, Check, CheckCheck, Eye, Play, Pause, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Lock, Sparkles, Check, CheckCheck, Eye, Play, Pause, Image as ImageIcon, Reply, Trash2, Flag, MoreVertical, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
-import { Message, useMessages } from '@/hooks/useMessages';
+import { Message, MessageReaction, useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
@@ -14,6 +14,23 @@ import SnapEditor from './SnapEditor';
 import TypingIndicator from './TypingIndicator';
 import ARFaceFilters from './ARFaceFilters';
 import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface ChatViewProps {
   friend: Profile;
@@ -21,6 +38,8 @@ interface ChatViewProps {
   onViewProfile: (user: Profile) => void;
   onVideoCall?: (friend: Profile) => void;
 }
+
+const REACTION_EMOJIS = ['❤️', '😂', '😮', '😢', '🔥', '👍'];
 
 // Status indicator component
 const MessageStatus = ({ status, isMe }: { status: string; isMe: boolean }) => {
@@ -35,7 +54,40 @@ const MessageStatus = ({ status, isMe }: { status: string; isMe: boolean }) => {
   );
 };
 
-// Snap message component with view limit
+// Message reactions display
+const MessageReactions = ({ 
+  reactions, 
+  onToggle,
+  messageId 
+}: { 
+  reactions: MessageReaction[]; 
+  onToggle: (emoji: string) => void;
+  messageId: string;
+}) => {
+  if (!reactions || reactions.length === 0) return null;
+
+  const grouped = reactions.reduce((acc, r) => {
+    acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  return (
+    <div className="flex gap-1 mt-1">
+      {Object.entries(grouped).map(([emoji, count]) => (
+        <button
+          key={`${messageId}-${emoji}`}
+          onClick={() => onToggle(emoji)}
+          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-muted/50 text-xs hover:bg-muted transition-colors"
+        >
+          <span>{emoji}</span>
+          {count > 1 && <span className="text-muted-foreground">{count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// Snap message component
 const SnapMessage = ({ 
   message, 
   isMe, 
@@ -54,10 +106,15 @@ const SnapMessage = ({
   const canView = viewsLeft > 0;
 
   const handleView = () => {
-    if (!canView || isMe) return;
+    if (!canView) return;
+    if (isMe) {
+      // Sender can always view their sent snap
+      setViewing(true);
+      return;
+    }
     setViewing(true);
     onView();
-    setTimeout(() => setViewing(false), 5000); // Auto close after 5s
+    setTimeout(() => setViewing(false), 5000);
   };
 
   if (viewing && message.media_url) {
@@ -70,15 +127,23 @@ const SnapMessage = ({
       >
         <img src={message.media_url} alt="Snap" className="max-w-full max-h-full object-contain" />
         <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md text-white text-sm">
-          {viewsLeft - 1} views left
+          {isMe ? `${viewsLeft} views left` : `${viewsLeft - 1} views left`}
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-4 left-4 text-white"
+          onClick={() => setViewing(false)}
+        >
+          <X className="w-6 h-6" />
+        </Button>
       </motion.div>
     );
   }
 
   return (
     <motion.div 
-      whileTap={canView && !isMe ? { scale: 0.95 } : undefined}
+      whileTap={canView ? { scale: 0.95 } : undefined}
       onClick={handleView}
       className={cn(
         "relative w-32 h-44 rounded-2xl overflow-hidden cursor-pointer",
@@ -107,7 +172,7 @@ const SnapMessage = ({
   );
 };
 
-// Voice message component with playback
+// Voice message component
 const VoiceMessage = ({ 
   message, 
   isMe,
@@ -190,9 +255,38 @@ const VoiceMessage = ({
   );
 };
 
+// Reaction picker popup
+const ReactionPicker = ({ 
+  onSelect, 
+  onClose 
+}: { 
+  onSelect: (emoji: string) => void; 
+  onClose: () => void;
+}) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.8, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.8, y: 10 }}
+      className="absolute bottom-full mb-2 left-0 flex gap-1 p-2 rounded-2xl glass shadow-lg z-10"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {REACTION_EMOJIS.map(emoji => (
+        <button
+          key={emoji}
+          onClick={() => { onSelect(emoji); onClose(); }}
+          className="text-xl hover:scale-125 transition-transform p-1"
+        >
+          {emoji}
+        </button>
+      ))}
+    </motion.div>
+  );
+};
+
 const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps) => {
   const { user } = useAuth();
-  const { sendMessage, getMessages, decrementSnapViews } = useMessages();
+  const { sendMessage, getMessages, decrementSnapViews, deleteMessage, deleteAllChat, reportMessage, addReaction, removeReaction } = useMessages();
   const { isRecording, duration, startRecording, stopRecording, cancelRecording, uploadAudio, formatDuration } = useAudioRecorder();
   const { isLocked, hasPassword } = useChatLock(friend.user_id);
   const { isPartnerTyping, handleTyping, stopTyping } = useTypingIndicator(friend.user_id);
@@ -203,6 +297,9 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   const [snapImage, setSnapImage] = useState<string | null>(null);
   const [showARCamera, setShowARCamera] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
+  const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -223,11 +320,14 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
         if (payload.eventType === 'INSERT') {
           if ((newMsg.sender_id === friend.user_id && newMsg.receiver_id === user?.id) ||
               (newMsg.sender_id === user?.id && newMsg.receiver_id === friend.user_id)) {
-            setMessages(prev => [...prev, newMsg]);
+            fetchMessages();
           }
-        } else if (payload.eventType === 'UPDATE') {
-          setMessages(prev => prev.map(m => m.id === newMsg.id ? { ...m, ...newMsg } : m));
+        } else if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
+          fetchMessages();
         }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, () => {
+        fetchMessages();
       })
       .subscribe();
 
@@ -242,8 +342,9 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
     if (!input.trim() || sending) return;
     stopTyping();
     setSending(true);
-    await sendMessage(friend.user_id, input.trim(), 'text');
+    await sendMessage(friend.user_id, input.trim(), 'text', undefined, undefined, replyTo?.id);
     setInput('');
+    setReplyTo(null);
     setSending(false);
   };
 
@@ -259,8 +360,9 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
       setSending(true);
       const url = await uploadAudio(result.blob, user.id);
       if (url) {
-        await sendMessage(friend.user_id, '🎵 Voice message', 'voice', url, Math.round(result.duration));
+        await sendMessage(friend.user_id, '🎵 Voice message', 'voice', url, Math.round(result.duration), replyTo?.id);
       }
+      setReplyTo(null);
       setSending(false);
     }
   };
@@ -271,7 +373,6 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   };
 
   const handleSendSnap = async (editedUrl: string) => {
-    // Upload snap to storage first
     if (!user) return;
     try {
       const response = await fetch(editedUrl);
@@ -283,16 +384,16 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
         .upload(fileName, blob, { contentType: 'image/jpeg' });
 
       if (error) {
-        // If bucket doesn't exist, send without URL
-        await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap');
+        await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap', undefined, undefined, replyTo?.id);
       } else {
         const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(fileName);
-        await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap', urlData.publicUrl);
+        await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap', urlData.publicUrl, undefined, replyTo?.id);
       }
     } catch {
-      await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap');
+      await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap', undefined, undefined, replyTo?.id);
     }
     setSnapImage(null);
+    setReplyTo(null);
   };
 
   const handleViewSnap = async (messageId: string) => {
@@ -302,7 +403,40 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
     }
   };
 
-  // Show lock screen if locked and not unlocked
+  const handleDeleteMessage = async (messageId: string) => {
+    const { error } = await deleteMessage(messageId);
+    if (!error) {
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+      toast.success('Message deleted');
+    } else {
+      toast.error('Could not delete message');
+    }
+  };
+
+  const handleReportMessage = async (messageId: string) => {
+    await reportMessage(messageId);
+    toast.success('Message reported');
+  };
+
+  const handleDeleteAllChat = async () => {
+    await deleteAllChat(friend.user_id);
+    setMessages([]);
+    setShowDeleteAllDialog(false);
+    toast.success('Your messages deleted');
+  };
+
+  const handleToggleReaction = async (messageId: string, emoji: string) => {
+    const msg = messages.find(m => m.id === messageId);
+    const hasReacted = msg?.reactions?.some(r => r.user_id === user?.id && r.emoji === emoji);
+    
+    if (hasReacted) {
+      await removeReaction(messageId, emoji);
+    } else {
+      await addReaction(messageId, emoji);
+    }
+    fetchMessages();
+  };
+
   if (isLocked && !unlocked) {
     return <ChatLockScreen chatId={friend.user_id} onUnlock={() => setUnlocked(true)} />;
   }
@@ -329,6 +463,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   const renderMessage = (msg: Message, i: number) => {
     const isMe = msg.sender_id === user?.id;
     const messageType = msg.message_type || 'text';
+    const replyToMsg = msg.reply_to_id ? messages.find(m => m.id === msg.reply_to_id) : null;
 
     return (
       <motion.div 
@@ -336,50 +471,128 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
         initial={{ opacity: 0, y: 10 }} 
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: i * 0.02 }} 
-        className={cn("flex", isMe ? "justify-end" : "justify-start")}
+        className={cn("flex group relative", isMe ? "justify-end" : "justify-start")}
       >
-        {messageType === 'snap' ? (
-          <div className="flex flex-col items-end gap-1">
-            <SnapMessage 
-              message={msg} 
-              isMe={isMe} 
-              onView={() => handleViewSnap(msg.id)}
-              colorPrimary={friend.color_primary || undefined}
-              colorSecondary={friend.color_secondary || undefined}
-            />
-            <div className="flex items-center text-[10px] opacity-60 px-2">
-              {formatTime(msg.created_at)}
-              <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+        <div className={cn("relative max-w-[80%]", isMe && "flex flex-col items-end")}>
+          {/* Reply preview */}
+          {replyToMsg && (
+            <div className="text-xs px-3 py-1 mb-1 rounded-lg bg-muted/50 border-l-2 border-primary truncate max-w-full">
+              <span className="opacity-60">↩</span> {replyToMsg.content.substring(0, 50)}
             </div>
+          )}
+
+          {/* Message actions */}
+          <div className={cn(
+            "absolute top-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10",
+            isMe ? "left-0 -translate-x-full pr-2" : "right-0 translate-x-full pl-2"
+          )}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full"
+              onClick={() => setShowReactionPicker(showReactionPicker === msg.id ? null : msg.id)}
+            >
+              <Smile className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full"
+              onClick={() => { setReplyTo(msg); inputRef.current?.focus(); }}
+            >
+              <Reply className="w-4 h-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align={isMe ? "end" : "start"}>
+                {isMe && (
+                  <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="text-destructive">
+                    <Trash2 className="w-4 h-4 mr-2" /> Delete
+                  </DropdownMenuItem>
+                )}
+                {!isMe && (
+                  <DropdownMenuItem onClick={() => handleReportMessage(msg.id)}>
+                    <Flag className="w-4 h-4 mr-2" /> Report
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        ) : messageType === 'voice' ? (
-          <div className="flex flex-col gap-1">
-            <VoiceMessage 
-              message={msg} 
-              isMe={isMe}
-              colorPrimary={friend.color_primary || undefined}
-              colorSecondary={friend.color_secondary || undefined}
-            />
-            <div className={cn("flex items-center text-[10px] opacity-60 px-2", isMe && "justify-end")}>
-              {formatTime(msg.created_at)}
-              <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+
+          {/* Reaction picker */}
+          <AnimatePresence>
+            {showReactionPicker === msg.id && (
+              <ReactionPicker
+                onSelect={(emoji) => handleToggleReaction(msg.id, emoji)}
+                onClose={() => setShowReactionPicker(null)}
+              />
+            )}
+          </AnimatePresence>
+
+          {messageType === 'snap' ? (
+            <div className="flex flex-col gap-1">
+              <SnapMessage 
+                message={msg} 
+                isMe={isMe} 
+                onView={() => handleViewSnap(msg.id)}
+                colorPrimary={friend.color_primary || undefined}
+                colorSecondary={friend.color_secondary || undefined}
+              />
+              <div className="flex items-center text-[10px] opacity-60 px-2">
+                {formatTime(msg.created_at)}
+                <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+              </div>
+              <MessageReactions 
+                reactions={msg.reactions || []} 
+                onToggle={(emoji) => handleToggleReaction(msg.id, emoji)}
+                messageId={msg.id}
+              />
             </div>
-          </div>
-        ) : (
-          <div 
-            className={cn("max-w-[75%] px-4 py-2.5 rounded-3xl", isMe ? "rounded-br-lg" : "rounded-bl-lg bg-muted/80")}
-            style={isMe ? { 
-              background: `linear-gradient(135deg, ${friend.color_primary || 'hsl(var(--primary))'}, ${friend.color_secondary || 'hsl(var(--secondary))'})`, 
-              color: 'white' 
-            } : undefined}
-          >
-            <p className="break-words text-[15px]">{msg.content}</p>
-            <div className={cn("flex items-center text-[10px] mt-1 opacity-60", isMe && "justify-end")}>
-              {formatTime(msg.created_at)}
-              <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+          ) : messageType === 'voice' ? (
+            <div className="flex flex-col gap-1">
+              <VoiceMessage 
+                message={msg} 
+                isMe={isMe}
+                colorPrimary={friend.color_primary || undefined}
+                colorSecondary={friend.color_secondary || undefined}
+              />
+              <div className={cn("flex items-center text-[10px] opacity-60 px-2", isMe && "justify-end")}>
+                {formatTime(msg.created_at)}
+                <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+              </div>
+              <MessageReactions 
+                reactions={msg.reactions || []} 
+                onToggle={(emoji) => handleToggleReaction(msg.id, emoji)}
+                messageId={msg.id}
+              />
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col gap-1">
+              <div 
+                className={cn("px-4 py-2.5 rounded-3xl", isMe ? "rounded-br-lg" : "rounded-bl-lg bg-muted/80")}
+                style={isMe ? { 
+                  background: `linear-gradient(135deg, ${friend.color_primary || 'hsl(var(--primary))'}, ${friend.color_secondary || 'hsl(var(--secondary))'})`, 
+                  color: 'white' 
+                } : undefined}
+              >
+                <p className="break-words text-[15px]">{msg.content}</p>
+                <div className={cn("flex items-center text-[10px] mt-1 opacity-60", isMe && "justify-end")}>
+                  {formatTime(msg.created_at)}
+                  <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+                </div>
+              </div>
+              <MessageReactions 
+                reactions={msg.reactions || []} 
+                onToggle={(emoji) => handleToggleReaction(msg.id, emoji)}
+                messageId={msg.id}
+              />
+            </div>
+          )}
+        </div>
       </motion.div>
     );
   };
@@ -416,14 +629,22 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           </button>
 
           <div className="flex items-center gap-1">
-            <Button 
-              variant={hasPassword ? 'ghost' : 'ghost'} 
-              size="icon" 
-              className={cn("rounded-full", hasPassword && "text-primary")}
-              onClick={() => setShowLockSettings(true)}
-            >
-              <Lock className="w-5 h-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <MoreVertical className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShowLockSettings(true)}>
+                  <Lock className="w-4 h-4 mr-2" /> {hasPassword ? 'Chat Lock' : 'Add Lock'}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowDeleteAllDialog(true)} className="text-destructive">
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete All My Messages
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="ghost" size="icon" className="rounded-full" onClick={() => onVideoCall?.(friend)}>
               <Video className="w-5 h-5" />
             </Button>
@@ -432,7 +653,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" onClick={() => setShowReactionPicker(null)}>
         {messages.length === 0 && (
           <div className="text-center py-12">
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}
@@ -450,13 +671,12 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
             <div className="flex justify-center mb-3">
               <span className="px-3 py-1 rounded-full glass text-xs font-medium">{date}</span>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {msgs.map((msg, i) => renderMessage(msg, i))}
             </div>
           </div>
         ))}
 
-        {/* Typing Indicator */}
         <AnimatePresence>
           {isPartnerTyping && (
             <TypingIndicator 
@@ -469,20 +689,38 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Reply preview */}
+      <AnimatePresence>
+        {replyTo && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t border-border/30 px-4 py-2 bg-muted/30"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <Reply className="w-4 h-4 text-primary" />
+                <span className="text-muted-foreground">Replying to</span>
+                <span className="font-medium truncate max-w-[200px]">{replyTo.content}</span>
+              </div>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setReplyTo(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Input Bar */}
       <div className="p-3 border-t border-border/30 safe-bottom" style={{ background: `linear-gradient(0deg, ${friend.color_primary || '#4ade80'}08, transparent)` }}>
         <AnimatePresence mode="wait">
           {isRecording ? (
-            <motion.div key="recording" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              className="flex items-center gap-3 p-2 rounded-2xl glass">
+            <motion.div key="recording" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              className="flex items-center gap-3 p-2 rounded-2xl bg-destructive/10">
+              <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
+              <span className="flex-1 font-mono">{formatDuration(duration)}</span>
               <Button variant="ghost" size="icon" className="rounded-full" onClick={cancelRecording}><X className="w-5 h-5" /></Button>
-              <div className="flex-1 flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-                <span className="font-mono text-sm">{formatDuration(duration)}</span>
-                <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
-                  <motion.div className="h-full bg-destructive" animate={{ width: ['0%', '100%'] }} transition={{ duration: 60, ease: 'linear' }} />
-                </div>
-              </div>
               <Button variant="neon" size="icon" className="rounded-full" onClick={handleSendAudio}><Send className="w-5 h-5" /></Button>
             </motion.div>
           ) : (
@@ -510,20 +748,10 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
         </AnimatePresence>
       </div>
 
-      {/* Lock Settings Modal */}
+      {/* Lock Settings */}
       <AnimatePresence>
         {showLockSettings && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center p-4"
-            onClick={() => setShowLockSettings(false)}
-          >
-            <div onClick={e => e.stopPropagation()}>
-              <ChatLockSettings chatId={friend.user_id} onClose={() => setShowLockSettings(false)} />
-            </div>
-          </motion.div>
+          <ChatLockSettings chatId={friend.user_id} onClose={() => setShowLockSettings(false)} />
         )}
       </AnimatePresence>
 
@@ -547,6 +775,24 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           />
         )}
       </AnimatePresence>
+
+      {/* Delete All Dialog */}
+      <AlertDialog open={showDeleteAllDialog} onOpenChange={setShowDeleteAllDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete all your messages?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete all messages you sent to {friend.display_name}. Messages they sent will remain. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAllChat} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 };

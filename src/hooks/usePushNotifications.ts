@@ -65,13 +65,13 @@ export const usePushNotifications = () => {
       const subscriptionJson = subscription.toJSON();
 
       const { error } = await supabase
-        .from('push_subscriptions' as any)
+        .from('push_subscriptions')
         .upsert({
           user_id: user.id,
           endpoint: subscriptionJson.endpoint!,
           p256dh_key: subscriptionJson.keys!.p256dh,
           auth_key: subscriptionJson.keys!.auth
-        } as any);
+        });
 
       if (error) {
         console.error('Error saving subscription:', error);
@@ -96,8 +96,8 @@ export const usePushNotifications = () => {
       if (subscription) {
         await subscription.unsubscribe();
         
-        await (supabase
-          .from('push_subscriptions' as any) as any)
+        await supabase
+          .from('push_subscriptions')
           .delete()
           .eq('user_id', user.id)
           .eq('endpoint', subscription.endpoint);

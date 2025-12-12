@@ -6,6 +6,14 @@ import { Profile } from '@/hooks/useProfile';
 export type MessageType = 'text' | 'snap' | 'voice';
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+}
+
 export interface Message {
   id: string;
   sender_id: string;
@@ -19,6 +27,10 @@ export interface Message {
   media_url?: string | null;
   snap_views_remaining?: number | null;
   audio_duration?: number | null;
+  reply_to_id?: string | null;
+  reply_to?: Message | null;
+  is_reported?: boolean;
+  reactions?: MessageReaction[];
 }
 
 export interface Conversation {
@@ -35,7 +47,6 @@ export const useMessages = () => {
   const fetchConversations = useCallback(async () => {
     if (!user) return;
 
-    // Get all messages involving user
     const { data: messages } = await supabase
       .from('messages')
       .select(`
@@ -51,7 +62,6 @@ export const useMessages = () => {
       return;
     }
 
-    // Group by conversation partner
     const convMap = new Map<string, Conversation>();
     
     messages.forEach((msg: any) => {
@@ -78,7 +88,6 @@ export const useMessages = () => {
     fetchConversations();
   }, [fetchConversations]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!user) return;
 
@@ -86,20 +95,12 @@ export const useMessages = () => {
       .channel('messages-realtime')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'messages',
-        },
-        () => {
-          fetchConversations();
-        }
+        { event: '*', schema: 'public', table: 'messages' },
+        () => { fetchConversations(); }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [user, fetchConversations]);
 
   const sendMessage = async (
@@ -107,7 +108,8 @@ export const useMessages = () => {
     content: string, 
     messageType: MessageType = 'text',
     mediaUrl?: string,
-    audioDuration?: number
+    audioDuration?: number,
+    replyToId?: string
   ) => {
     if (!user) return { error: new Error('Not authenticated') };
 
@@ -122,12 +124,10 @@ export const useMessages = () => {
         media_url: mediaUrl,
         snap_views_remaining: messageType === 'snap' ? 3 : null,
         audio_duration: audioDuration,
+        reply_to_id: replyToId,
       });
 
-    if (!error) {
-      fetchConversations();
-    }
-
+    if (!error) { fetchConversations(); }
     return { error };
   };
 
@@ -150,15 +150,84 @@ export const useMessages = () => {
       .eq('sender_id', partnerId)
       .eq('receiver_id', user.id);
 
+    // Fetch reactions for messages
+    if (data && data.length > 0) {
+      const messageIds = data.map(m => m.id);
+      const { data: reactions } = await supabase
+        .from('message_reactions')
+        .select('*')
+        .in('message_id', messageIds);
+
+      const messagesWithReactions = data.map(msg => ({
+        ...msg,
+        reactions: reactions?.filter(r => r.message_id === msg.id) || []
+      }));
+
+      return messagesWithReactions as Message[];
+    }
+
     return (data || []) as Message[];
   };
 
-  const markAsDelivered = async (messageId: string) => {
+  const deleteMessage = async (messageId: string) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('id', messageId)
+      .eq('sender_id', user.id);
+
+    return { error };
+  };
+
+  const deleteAllChat = async (partnerId: string) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    // Delete messages sent by user to partner
     await supabase
       .from('messages')
-      .update({ status: 'delivered' })
-      .eq('id', messageId)
-      .eq('status', 'sent');
+      .delete()
+      .eq('sender_id', user.id)
+      .eq('receiver_id', partnerId);
+
+    return { success: true };
+  };
+
+  const reportMessage = async (messageId: string) => {
+    const { error } = await supabase
+      .from('messages')
+      .update({ is_reported: true })
+      .eq('id', messageId);
+
+    return { error };
+  };
+
+  const addReaction = async (messageId: string, emoji: string) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    const { error } = await supabase
+      .from('message_reactions')
+      .insert({
+        message_id: messageId,
+        user_id: user.id,
+        emoji
+      });
+
+    return { error };
+  };
+
+  const removeReaction = async (messageId: string, emoji: string) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    const { error } = await supabase
+      .from('message_reactions')
+      .delete()
+      .eq('message_id', messageId)
+      .eq('user_id', user.id)
+      .eq('emoji', emoji);
+
+    return { error };
   };
 
   const decrementSnapViews = async (messageId: string): Promise<number | null> => {
@@ -185,7 +254,11 @@ export const useMessages = () => {
     sendMessage, 
     getMessages, 
     refetch: fetchConversations,
-    markAsDelivered,
+    deleteMessage,
+    deleteAllChat,
+    reportMessage,
+    addReaction,
+    removeReaction,
     decrementSnapViews,
   };
 };
