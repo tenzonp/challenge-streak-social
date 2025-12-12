@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import Header from '@/components/woup/Header';
 import BottomNav from '@/components/woup/BottomNav';
 import ChallengeCard from '@/components/woup/ChallengeCard';
-import FeedPost from '@/components/woup/FeedPost';
+import ViralPostCard from '@/components/woup/ViralPostCard';
 import FriendCard from '@/components/woup/FriendCard';
 import ProfileCard from '@/components/woup/ProfileCard';
 import SendChallengeModal from '@/components/woup/SendChallengeModal';
@@ -18,10 +18,11 @@ import StreakLeaderboard from '@/components/woup/StreakLeaderboard';
 import CompetitionCard from '@/components/woup/CompetitionCard';
 import VideoCallModal from '@/components/woup/VideoCallModal';
 import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
+import { DayStreakCounter } from '@/components/woup/StreakBadges';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
 import { useChallenges, Challenge } from '@/hooks/useChallenges';
-import { useFeed } from '@/hooks/useFeed';
+import { usePersonalizedFeed } from '@/hooks/usePersonalizedFeed';
 import { useFriends } from '@/hooks/useFriends';
 import { useMessages } from '@/hooks/useMessages';
 import { useChallengeExpiry } from '@/hooks/useChallengeExpiry';
@@ -39,7 +40,8 @@ const Index = () => {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
-  const { posts, addReaction } = useFeed();
+  const [feedTab, setFeedTab] = useState<FeedTab>('friends');
+  const { posts, addReaction, markAsViewed } = usePersonalizedFeed(feedTab);
   const { friends, allUsers, addFriend } = useFriends();
   const { conversations } = useMessages();
   const { showReward, setShowReward, checkAndClaimReward } = useStreakRewards();
@@ -49,7 +51,6 @@ const Index = () => {
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>('feed');
-  const [feedTab, setFeedTab] = useState<FeedTab>('friends');
   const [selectedFriend, setSelectedFriend] = useState<Profile | null>(null);
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
@@ -187,8 +188,15 @@ const Index = () => {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {posts.map(post => (
-                    <FeedPost key={post.id} post={post} onReact={addReaction} onViewProfile={handleViewProfile} />
+                  {posts.map((post, i) => (
+                    <ViralPostCard 
+                      key={post.id} 
+                      post={post} 
+                      onReact={addReaction} 
+                      onViewProfile={handleViewProfile}
+                      onView={markAsViewed}
+                      isNew={i < 3}
+                    />
                   ))}
                 </div>
               )}

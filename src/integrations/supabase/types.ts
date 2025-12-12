@@ -185,6 +185,75 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          achievement_unlocks_enabled: boolean
+          challenges_enabled: boolean
+          competition_updates_enabled: boolean
+          created_at: string
+          friend_requests_enabled: boolean
+          id: string
+          messages_enabled: boolean
+          streak_reminders_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          achievement_unlocks_enabled?: boolean
+          challenges_enabled?: boolean
+          competition_updates_enabled?: boolean
+          created_at?: string
+          friend_requests_enabled?: boolean
+          id?: string
+          messages_enabled?: boolean
+          streak_reminders_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          achievement_unlocks_enabled?: boolean
+          challenges_enabled?: boolean
+          competition_updates_enabled?: boolean
+          created_at?: string
+          friend_requests_enabled?: boolean
+          id?: string
+          messages_enabled?: boolean
+          streak_reminders_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      post_engagement: {
+        Row: {
+          engagement_score: number
+          id: string
+          likes_count: number
+          replies_count: number
+          response_id: string
+          updated_at: string
+          views_count: number
+        }
+        Insert: {
+          engagement_score?: number
+          id?: string
+          likes_count?: number
+          replies_count?: number
+          response_id: string
+          updated_at?: string
+          views_count?: number
+        }
+        Update: {
+          engagement_score?: number
+          id?: string
+          likes_count?: number
+          replies_count?: number
+          response_id?: string
+          updated_at?: string
+          views_count?: number
+        }
+        Relationships: []
+      }
       posts: {
         Row: {
           content: string | null
@@ -359,6 +428,27 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      viewed_posts: {
+        Row: {
+          id: string
+          response_id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          id?: string
+          response_id: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          id?: string
+          response_id?: string
+          user_id?: string
+          viewed_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
