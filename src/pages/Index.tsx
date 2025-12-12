@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import Header from '@/components/woup/Header';
 import BottomNav from '@/components/woup/BottomNav';
 import ChallengeCard from '@/components/woup/ChallengeCard';
@@ -7,38 +8,86 @@ import FriendCard from '@/components/woup/FriendCard';
 import ProfileCard from '@/components/woup/ProfileCard';
 import SendChallengeModal from '@/components/woup/SendChallengeModal';
 import CameraModal from '@/components/woup/CameraModal';
-import { pendingChallenges, feedPosts, friends, currentUser } from '@/data/mockData';
-import { User, Challenge } from '@/types/woup';
-import { Sparkles, Zap } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useProfile, Profile } from '@/hooks/useProfile';
+import { useChallenges, Challenge } from '@/hooks/useChallenges';
+import { useFeed } from '@/hooks/useFeed';
+import { useFriends } from '@/hooks/useFriends';
+import { Sparkles, Zap, Users, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 type Tab = 'feed' | 'challenges' | 'friends' | 'profile';
 
 const Index = () => {
+  const { user, loading: authLoading } = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
+  const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
+  const { posts, addReaction } = useFeed();
+  const { friends, allUsers, addFriend } = useFriends();
+  const { toast } = useToast();
+
   const [activeTab, setActiveTab] = useState<Tab>('feed');
-  const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
+  const [selectedFriend, setSelectedFriend] = useState<Profile | null>(null);
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
 
+  // Redirect to auth if not logged in
+  if (!authLoading && !user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  // Loading state
+  if (authLoading || profileLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">loading your vibes...</p>
+        </div>
+      </div>
+    );
+  }
+
   const handleChallenge = (userId: string) => {
-    const friend = friends.find(f => f.id === userId);
+    const friend = [...friends, ...allUsers].find(f => f.user_id === userId);
     if (friend) setSelectedFriend(friend);
   };
 
   const handleRespond = (challengeId: string) => {
     const challenge = pendingChallenges.find(c => c.id === challengeId);
-    if (challenge) setActiveChallenge(challenge);
+    if (challenge) setActiveChallenge(challenge as Challenge);
   };
 
-  const handleSendChallenge = (friendId: string, challengeText: string) => {
-    console.log('Challenge sent:', { friendId, challengeText });
+  const handleSendChallenge = async (friendId: string, challengeText: string) => {
+    return sendChallenge(friendId, challengeText);
   };
 
-  const handleSubmitResponse = (challengeId: string) => {
-    console.log('Response submitted:', challengeId);
+  const handleSubmitResponse = async (challengeId: string, frontUrl: string, backUrl: string, caption?: string) => {
+    const { error } = await respondToChallenge(challengeId, frontUrl, backUrl, caption);
+    if (error) {
+      toast({
+        title: "failed to post",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddFriend = async (userId: string) => {
+    const { error } = await addFriend(userId);
+    if (!error) {
+      toast({
+        title: "friend added! 🎉",
+        description: "you can now challenge them",
+      });
+    }
   };
 
   return (
     <div className="min-h-screen bg-background pb-24 pt-20">
-      <Header onProfileClick={() => setActiveTab('profile')} />
+      <Header 
+        onProfileClick={() => setActiveTab('profile')} 
+        pendingCount={pendingChallenges.length}
+      />
       
       <main className="container mx-auto px-4">
         {/* Feed Tab */}
@@ -72,11 +121,25 @@ const Index = () => {
                 <Sparkles className="w-5 h-5 text-primary" />
                 <h2 className="text-lg font-semibold">latest woups</h2>
               </div>
-              <div className="space-y-6">
-                {feedPosts.map(post => (
-                  <FeedPost key={post.id} post={post} />
-                ))}
-              </div>
+              {posts.length === 0 ? (
+                <div className="glass rounded-3xl p-8 text-center">
+                  <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">no posts yet!</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    send a challenge to get started 🚀
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {posts.map(post => (
+                    <FeedPost 
+                      key={post.id} 
+                      post={post} 
+                      onReact={addReaction}
+                    />
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         )}
@@ -92,37 +155,78 @@ const Index = () => {
               <p className="text-muted-foreground">pick a friend and ask them something!</p>
             </div>
             
-            <div className="space-y-3">
-              {friends.map(friend => (
-                <FriendCard 
-                  key={friend.id} 
-                  friend={friend}
-                  onChallenge={handleChallenge}
-                />
-              ))}
-            </div>
+            {friends.length === 0 ? (
+              <div className="glass rounded-3xl p-8 text-center">
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">add friends first!</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  go to the friends tab to find people
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {friends.map(friend => (
+                  <FriendCard 
+                    key={friend.id} 
+                    friend={friend}
+                    onChallenge={handleChallenge}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
         
         {/* Friends Tab */}
         {activeTab === 'friends' && (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold">your crew 👥</h2>
-            <div className="space-y-3">
-              {friends.map(friend => (
-                <FriendCard 
-                  key={friend.id} 
-                  friend={friend}
-                  onChallenge={handleChallenge}
-                />
-              ))}
-            </div>
+            {friends.length > 0 && (
+              <section>
+                <h2 className="text-xl font-bold mb-4">your crew 👥</h2>
+                <div className="space-y-3">
+                  {friends.map(friend => (
+                    <FriendCard 
+                      key={friend.id} 
+                      friend={friend}
+                      onChallenge={handleChallenge}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <h2 className="text-xl font-bold mb-4">discover people ✨</h2>
+              {allUsers.filter(u => !friends.some(f => f.user_id === u.user_id)).length === 0 ? (
+                <div className="glass rounded-3xl p-8 text-center">
+                  <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">no one else here yet!</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    invite your friends to join woup 🚀
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {allUsers
+                    .filter(u => !friends.some(f => f.user_id === u.user_id))
+                    .map(user => (
+                      <FriendCard 
+                        key={user.id} 
+                        friend={user}
+                        onChallenge={handleChallenge}
+                        showAddButton
+                        onAdd={handleAddFriend}
+                      />
+                    ))}
+                </div>
+              )}
+            </section>
           </div>
         )}
         
         {/* Profile Tab */}
-        {activeTab === 'profile' && (
-          <ProfileCard user={currentUser} />
+        {activeTab === 'profile' && profile && (
+          <ProfileCard profile={profile} />
         )}
       </main>
       
