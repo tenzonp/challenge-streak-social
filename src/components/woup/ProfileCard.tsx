@@ -84,16 +84,22 @@ const ProfileCard = ({ profile, onEdit }: ProfileCardProps) => {
 
       {/* Music */}
       {profile.current_song && (
-        <div className="glass rounded-2xl p-4 flex items-center gap-3">
+        <div 
+          className="rounded-2xl p-4 flex items-center gap-3"
+          style={{ 
+            background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}15, ${profile.color_secondary || '#f472b6'}15)`,
+            borderLeft: `3px solid ${profile.color_primary || '#4ade80'}`
+          }}
+        >
           <div 
-            className="w-12 h-12 rounded-xl flex items-center justify-center"
+            className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 animate-pulse-slow"
             style={{ background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}, ${profile.color_secondary || '#f472b6'})` }}
           >
-            <Music className="w-6 h-6 text-white" />
+            <Music className="w-7 h-7 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground">listening to</p>
-            <p className="font-semibold truncate">{profile.current_song}</p>
+            <p className="text-xs text-muted-foreground">now playing</p>
+            <p className="font-bold truncate text-lg">{profile.current_song}</p>
             <p className="text-sm text-muted-foreground truncate">{profile.current_artist}</p>
           </div>
         </div>
@@ -102,15 +108,16 @@ const ProfileCard = ({ profile, onEdit }: ProfileCardProps) => {
       {/* Interests */}
       {profile.interests && profile.interests.length > 0 && (
         <div className="glass rounded-2xl p-4">
-          <p className="text-xs text-muted-foreground mb-2">interests</p>
+          <p className="text-xs text-muted-foreground mb-3">interests</p>
           <div className="flex flex-wrap gap-2">
             {profile.interests.map((interest, i) => (
               <span 
                 key={i} 
-                className="px-3 py-1 rounded-full text-sm"
+                className="px-4 py-2 rounded-xl text-sm font-medium transition-all hover:scale-105"
                 style={{ 
-                  background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}20, ${profile.color_secondary || '#f472b6'}20)`,
-                  color: profile.color_primary || '#4ade80'
+                  background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}25, ${profile.color_secondary || '#f472b6'}25)`,
+                  color: profile.color_primary || '#4ade80',
+                  border: `1px solid ${profile.color_primary || '#4ade80'}40`
                 }}
               >
                 {interest}
