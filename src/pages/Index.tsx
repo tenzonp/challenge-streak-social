@@ -15,6 +15,9 @@ import CreatePostModal from '@/components/woup/CreatePostModal';
 import RewardAnimation from '@/components/woup/RewardAnimation';
 import UserProfileModal from '@/components/woup/UserProfileModal';
 import StreakLeaderboard from '@/components/woup/StreakLeaderboard';
+import CompetitionCard from '@/components/woup/CompetitionCard';
+import VideoCallModal from '@/components/woup/VideoCallModal';
+import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
 import { useChallenges, Challenge } from '@/hooks/useChallenges';
@@ -23,11 +26,14 @@ import { useFriends } from '@/hooks/useFriends';
 import { useMessages } from '@/hooks/useMessages';
 import { useChallengeExpiry } from '@/hooks/useChallengeExpiry';
 import { useStreakRewards } from '@/hooks/useStreakRewards';
-import { Sparkles, Zap, MessageCircle, Loader2, Search, Users } from 'lucide-react';
+import { useCompetitions } from '@/hooks/useCompetitions';
+import { useAchievements } from '@/hooks/useAchievements';
+import { Sparkles, Zap, MessageCircle, Loader2, Search, Users, Globe, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
 type Tab = 'feed' | 'challenges' | 'profile';
+type FeedTab = 'friends' | 'global';
 
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
@@ -37,10 +43,13 @@ const Index = () => {
   const { friends, allUsers, addFriend } = useFriends();
   const { conversations } = useMessages();
   const { showReward, setShowReward, checkAndClaimReward } = useStreakRewards();
-  useChallengeExpiry(); // Check for expired challenges
+  const { activeCompetitions, leaderboard, userEntry, joinCompetition } = useCompetitions();
+  const { newAchievement, setNewAchievement } = useAchievements();
+  useChallengeExpiry();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>('feed');
+  const [feedTab, setFeedTab] = useState<FeedTab>('friends');
   const [selectedFriend, setSelectedFriend] = useState<Profile | null>(null);
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
@@ -49,6 +58,7 @@ const Index = () => {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [videoCallWith, setVideoCallWith] = useState<Profile | null>(null);
 
   const unreadCount = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
 
@@ -121,6 +131,33 @@ const Index = () => {
       <main className="container mx-auto px-4">
         {activeTab === 'feed' && (
           <div className="space-y-6">
+            {/* Feed Tabs */}
+            <div className="flex gap-2">
+              <Button variant={feedTab === 'friends' ? 'neon' : 'outline'} size="sm" className="gap-2" onClick={() => setFeedTab('friends')}>
+                <Users className="w-4 h-4" /> Friends
+              </Button>
+              <Button variant={feedTab === 'global' ? 'neon' : 'outline'} size="sm" className="gap-2" onClick={() => setFeedTab('global')}>
+                <Globe className="w-4 h-4" /> Global
+              </Button>
+            </div>
+
+            {/* Competitions */}
+            {activeCompetitions.length > 0 && (
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy className="w-5 h-5 text-yellow-400" />
+                  <h2 className="font-semibold">Active Competition</h2>
+                </div>
+                <CompetitionCard 
+                  competition={activeCompetitions[0]}
+                  leaderboard={leaderboard}
+                  userEntry={userEntry}
+                  onJoin={() => joinCompetition(activeCompetitions[0].id)}
+                  onViewProfile={handleViewProfile}
+                />
+              </section>
+            )}
+
             {pendingChallenges.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-4">
@@ -141,7 +178,7 @@ const Index = () => {
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">latest woups</h2>
+                <h2 className="text-lg font-semibold">{feedTab === 'friends' ? 'friends feed' : 'global feed'}</h2>
               </div>
               {posts.length === 0 ? (
                 <div className="glass rounded-3xl p-8 text-center">
@@ -151,12 +188,7 @@ const Index = () => {
               ) : (
                 <div className="space-y-6">
                   {posts.map(post => (
-                    <FeedPost 
-                      key={post.id} 
-                      post={post} 
-                      onReact={addReaction} 
-                      onViewProfile={handleViewProfile}
-                    />
+                    <FeedPost key={post.id} post={post} onReact={addReaction} onViewProfile={handleViewProfile} />
                   ))}
                 </div>
               )}
@@ -277,7 +309,7 @@ const Index = () => {
       {selectedFriend && <SendChallengeModal friend={selectedFriend} onClose={() => setSelectedFriend(null)} onSend={handleSendChallenge} />}
       {activeChallenge && <CameraModal challenge={activeChallenge} onClose={() => setActiveChallenge(null)} onSubmit={handleSubmitResponse} />}
       {showProfileEdit && profile && <ProfileEditModal profile={profile} onClose={() => setShowProfileEdit(false)} />}
-      {chatWith && <ChatView friend={chatWith} onBack={() => setChatWith(null)} onViewProfile={handleViewProfile} />}
+      {chatWith && <ChatView friend={chatWith} onBack={() => setChatWith(null)} onViewProfile={handleViewProfile} onVideoCall={setVideoCallWith} />}
       {showSearch && <UserSearch onChallenge={handleChallenge} onChat={setChatWith} onClose={() => setShowSearch(false)} />}
       {showCreatePost && <CreatePostModal onClose={() => setShowCreatePost(false)} />}
       {showReward && <RewardAnimation reward={showReward} onComplete={() => setShowReward(null)} />}
@@ -290,11 +322,10 @@ const Index = () => {
         />
       )}
       {showLeaderboard && (
-        <StreakLeaderboard 
-          onClose={() => setShowLeaderboard(false)}
-          onViewProfile={handleViewProfile}
-        />
+        <StreakLeaderboard onClose={() => setShowLeaderboard(false)} onViewProfile={handleViewProfile} />
       )}
+      {videoCallWith && <VideoCallModal friend={videoCallWith} onClose={() => setVideoCallWith(null)} />}
+      {newAchievement && <AchievementUnlockModal achievement={newAchievement} onClose={() => setNewAchievement(null)} />}
     </div>
   );
 };
