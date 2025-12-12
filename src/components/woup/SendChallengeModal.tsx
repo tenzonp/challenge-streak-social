@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { X, Send, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { User } from '@/types/woup';
 import { useToast } from '@/hooks/use-toast';
+import { Profile } from '@/hooks/useProfile';
 
 interface SendChallengeModalProps {
-  friend: User;
+  friend: Profile;
   onClose: () => void;
-  onSend: (friendId: string, challenge: string) => void;
+  onSend: (friendId: string, challenge: string) => Promise<{ error: Error | null }>;
 }
 
 const quickChallenges = [
@@ -21,9 +21,10 @@ const quickChallenges = [
 
 const SendChallengeModal = ({ friend, onClose, onSend }: SendChallengeModalProps) => {
   const [challenge, setChallenge] = useState('');
+  const [sending, setSending] = useState(false);
   const { toast } = useToast();
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!challenge.trim()) {
       toast({
         title: "write something!",
@@ -33,10 +34,22 @@ const SendChallengeModal = ({ friend, onClose, onSend }: SendChallengeModalProps
       return;
     }
     
-    onSend(friend.id, challenge);
+    setSending(true);
+    const { error } = await onSend(friend.user_id, challenge);
+    setSending(false);
+
+    if (error) {
+      toast({
+        title: "failed to send",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
       title: "challenge sent! 🚀",
-      description: `${friend.displayName} has 1 hour to respond`,
+      description: `${friend.display_name} has 1 hour to respond`,
     });
     onClose();
   };
@@ -55,12 +68,12 @@ const SendChallengeModal = ({ friend, onClose, onSend }: SendChallengeModalProps
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <img 
-              src={friend.avatar} 
-              alt={friend.displayName}
+              src={friend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.user_id}`} 
+              alt={friend.display_name}
               className="w-12 h-12 rounded-2xl border-2 border-secondary/50"
             />
             <div>
-              <h3 className="font-semibold">challenge {friend.displayName}</h3>
+              <h3 className="font-semibold">challenge {friend.display_name}</h3>
               <p className="text-sm text-muted-foreground">they have 1 hour ⏰</p>
             </div>
           </div>
@@ -108,9 +121,10 @@ const SendChallengeModal = ({ friend, onClose, onSend }: SendChallengeModalProps
           variant="neon" 
           className="w-full gap-2"
           onClick={handleSend}
+          disabled={sending}
         >
           <Send className="w-4 h-4" />
-          send challenge
+          {sending ? 'sending...' : 'send challenge'}
         </Button>
       </div>
     </div>

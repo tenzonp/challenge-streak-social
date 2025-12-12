@@ -1,0 +1,103 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { Profile } from '@/hooks/useProfile';
+
+export interface Challenge {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+  challenge_text: string;
+  status: 'pending' | 'completed' | 'expired';
+  created_at: string;
+  expires_at: string;
+  from_user?: Profile;
+  to_user?: Profile;
+}
+
+export interface ChallengeResponse {
+  id: string;
+  challenge_id: string;
+  user_id: string;
+  front_photo_url: string;
+  back_photo_url: string;
+  caption: string | null;
+  created_at: string;
+  user?: Profile;
+  challenge?: Challenge;
+  reactions?: { user_id: string; emoji: string }[];
+}
+
+export const useChallenges = () => {
+  const { user } = useAuth();
+  const [pendingChallenges, setPendingChallenges] = useState<Challenge[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchChallenges = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('challenges')
+      .select(`
+        *,
+        from_user:profiles!challenges_from_user_id_fkey(*),
+        to_user:profiles!challenges_to_user_id_fkey(*)
+      `)
+      .eq('to_user_id', user.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setPendingChallenges(data as Challenge[]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchChallenges();
+  }, [user]);
+
+  const sendChallenge = async (toUserId: string, challengeText: string) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    const { error } = await supabase
+      .from('challenges')
+      .insert({
+        from_user_id: user.id,
+        to_user_id: toUserId,
+        challenge_text: challengeText,
+        expires_at: expiresAt.toISOString(),
+      });
+
+    return { error };
+  };
+
+  const respondToChallenge = async (
+    challengeId: string, 
+    frontPhotoUrl: string, 
+    backPhotoUrl: string, 
+    caption?: string
+  ) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    const { error } = await supabase
+      .from('challenge_responses')
+      .insert({
+        challenge_id: challengeId,
+        user_id: user.id,
+        front_photo_url: frontPhotoUrl,
+        back_photo_url: backPhotoUrl,
+        caption,
+      });
+
+    if (!error) {
+      fetchChallenges();
+    }
+
+    return { error };
+  };
+
+  return { pendingChallenges, loading, sendChallenge, respondToChallenge, refetch: fetchChallenges };
+};

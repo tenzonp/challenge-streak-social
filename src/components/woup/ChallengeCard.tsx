@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Clock, Camera, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Challenge } from '@/types/woup';
 import { cn } from '@/lib/utils';
+import { Profile } from '@/hooks/useProfile';
 
 interface ChallengeCardProps {
-  challenge: Challenge;
+  challenge: {
+    id: string;
+    challenge_text: string;
+    created_at: string;
+    expires_at: string;
+    status: string;
+    from_user?: Profile;
+  };
   onRespond: (challengeId: string) => void;
   onDismiss?: (challengeId: string) => void;
 }
@@ -17,7 +24,9 @@ const ChallengeCard = ({ challenge, onRespond, onDismiss }: ChallengeCardProps) 
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      const diff = challenge.expiresAt.getTime() - now.getTime();
+      const expiresAt = new Date(challenge.expires_at);
+      const createdAt = new Date(challenge.created_at);
+      const diff = expiresAt.getTime() - now.getTime();
       
       if (diff <= 0) {
         setTimeLeft('expired');
@@ -25,8 +34,8 @@ const ChallengeCard = ({ challenge, onRespond, onDismiss }: ChallengeCardProps) 
         return;
       }
       
-      const totalDuration = challenge.expiresAt.getTime() - challenge.createdAt.getTime();
-      const elapsed = now.getTime() - challenge.createdAt.getTime();
+      const totalDuration = expiresAt.getTime() - createdAt.getTime();
+      const elapsed = now.getTime() - createdAt.getTime();
       setProgress(Math.max(0, ((totalDuration - elapsed) / totalDuration) * 100));
       
       const minutes = Math.floor(diff / 60000);
@@ -60,18 +69,18 @@ const ChallengeCard = ({ challenge, onRespond, onDismiss }: ChallengeCardProps) 
       
       <div className="flex items-start gap-3 mt-2">
         <img 
-          src={challenge.fromUser.avatar} 
-          alt={challenge.fromUser.displayName}
+          src={challenge.from_user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=default`} 
+          alt={challenge.from_user?.display_name || 'User'}
           className="w-12 h-12 rounded-2xl border-2 border-primary/30"
         />
         
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-semibold">{challenge.fromUser.displayName}</span>
+            <span className="font-semibold">{challenge.from_user?.display_name || 'Friend'}</span>
             <span className="text-muted-foreground text-sm">challenged you!</span>
           </div>
           
-          <p className="text-lg font-medium mb-3">{challenge.challengeText}</p>
+          <p className="text-lg font-medium mb-3">{challenge.challenge_text}</p>
           
           <div className="flex items-center justify-between">
             <div className={cn(

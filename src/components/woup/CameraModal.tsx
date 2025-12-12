@@ -1,58 +1,139 @@
-import { useState } from 'react';
-import { X, Camera, RotateCcw, Check, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Camera, RotateCcw, Check, Sparkles, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Challenge } from '@/types/woup';
+import { useCamera } from '@/hooks/useCamera';
 import { useToast } from '@/hooks/use-toast';
+import { Challenge } from '@/hooks/useChallenges';
+import { Profile } from '@/hooks/useProfile';
 
 interface CameraModalProps {
-  challenge: Challenge;
+  challenge: {
+    id: string;
+    challenge_text: string;
+    from_user?: Profile;
+  };
   onClose: () => void;
-  onSubmit: (challengeId: string) => void;
+  onSubmit: (challengeId: string, frontUrl: string, backUrl: string, caption?: string) => Promise<void>;
 }
 
 const CameraModal = ({ challenge, onClose, onSubmit }: CameraModalProps) => {
-  const [step, setStep] = useState<'front' | 'back' | 'preview'>('front');
+  const { toast } = useToast();
+  const {
+    stream,
+    facingMode,
+    videoRef,
+    canvasRef,
+    startCamera,
+    stopCamera,
+    switchCamera,
+    capturePhoto,
+    uploadPhoto,
+  } = useCamera();
+
+  const [step, setStep] = useState<'camera-front' | 'camera-back' | 'preview'>('camera-front');
   const [frontPhoto, setFrontPhoto] = useState<string | null>(null);
   const [backPhoto, setBackPhoto] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
-  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
-  // Simulate taking a photo
-  const takePhoto = () => {
-    const demoPhotos = {
-      front: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=500&fit=crop',
-      back: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=500&fit=crop',
-    };
-    
-    if (step === 'front') {
-      setFrontPhoto(demoPhotos.front);
-      setStep('back');
-    } else if (step === 'back') {
-      setBackPhoto(demoPhotos.back);
+  useEffect(() => {
+    initCamera();
+    return () => stopCamera();
+  }, []);
+
+  const initCamera = async () => {
+    try {
+      setCameraError(null);
+      await startCamera('user');
+    } catch (error) {
+      setCameraError('Could not access camera. Please allow camera permissions.');
+    }
+  };
+
+  const handleCapture = async () => {
+    const photo = capturePhoto();
+    if (!photo) {
+      toast({
+        title: "capture failed",
+        description: "please try again",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (step === 'camera-front') {
+      setFrontPhoto(photo);
+      // Switch to back camera
+      try {
+        await startCamera('environment');
+        setStep('camera-back');
+      } catch {
+        // If back camera fails, use front camera again
+        await startCamera('user');
+        setStep('camera-back');
+      }
+    } else if (step === 'camera-back') {
+      setBackPhoto(photo);
+      stopCamera();
       setStep('preview');
     }
   };
 
-  const handleSubmit = () => {
-    onSubmit(challenge.id);
-    toast({
-      title: "posted! 🎉",
-      description: "streak +1! keep it going 🔥",
-    });
-    onClose();
+  const handleRetake = async () => {
+    setFrontPhoto(null);
+    setBackPhoto(null);
+    setStep('camera-front');
+    await startCamera('user');
+  };
+
+  const handleSubmit = async () => {
+    if (!frontPhoto || !backPhoto) return;
+
+    setSubmitting(true);
+    try {
+      // Upload photos
+      const frontUrl = await uploadPhoto(frontPhoto, 'front');
+      const backUrl = await uploadPhoto(backPhoto, 'back');
+
+      if (!frontUrl || !backUrl) {
+        throw new Error('Failed to upload photos');
+      }
+
+      await onSubmit(challenge.id, frontUrl, backUrl, caption || undefined);
+      
+      toast({
+        title: "posted! 🎉",
+        description: "streak +1! keep it going 🔥",
+      });
+      onClose();
+    } catch (error) {
+      toast({
+        title: "upload failed",
+        description: "please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
+      {/* Hidden canvas for capturing */}
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* Header */}
-      <div className="flex items-center justify-between p-4">
-        <Button variant="ghost" size="icon" onClick={onClose}>
+      <div className="flex items-center justify-between p-4 glass">
+        <Button variant="ghost" size="icon" onClick={onClose} disabled={submitting}>
           <X className="w-6 h-6" />
         </Button>
         
         <div className="text-center">
-          <p className="text-sm text-muted-foreground">challenge from {challenge.fromUser.displayName}</p>
-          <p className="font-semibold">{challenge.challengeText}</p>
+          <p className="text-sm text-muted-foreground">
+            challenge from {challenge.from_user?.display_name || 'friend'}
+          </p>
+          <p className="font-semibold">{challenge.challenge_text}</p>
         </div>
         
         <div className="w-10" />
@@ -60,15 +141,24 @@ const CameraModal = ({ challenge, onClose, onSubmit }: CameraModalProps) => {
       
       {/* Camera/Preview Area */}
       <div className="flex-1 relative overflow-hidden">
-        {step === 'preview' ? (
+        {cameraError ? (
+          <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+            <Camera className="w-16 h-16 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground mb-4">{cameraError}</p>
+            <Button variant="outline" onClick={initCamera}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Try Again
+            </Button>
+          </div>
+        ) : step === 'preview' ? (
           <div className="h-full flex flex-col items-center justify-center p-6">
-            <div className="relative w-full max-w-sm aspect-[4/5] rounded-3xl overflow-hidden mb-4">
+            <div className="relative w-full max-w-sm aspect-[4/5] rounded-3xl overflow-hidden mb-4 shadow-xl">
               <img 
                 src={backPhoto!} 
                 alt="Back camera"
                 className="w-full h-full object-cover"
               />
-              <div className="absolute top-4 left-4 w-20 h-28 rounded-xl overflow-hidden border-2 border-card">
+              <div className="absolute top-4 left-4 w-20 h-28 rounded-xl overflow-hidden border-2 border-card shadow-lg">
                 <img 
                   src={frontPhoto!} 
                   alt="Front camera"
@@ -87,36 +177,45 @@ const CameraModal = ({ challenge, onClose, onSubmit }: CameraModalProps) => {
             />
           </div>
         ) : (
-          <div className="h-full flex items-center justify-center">
-            <div className="w-full max-w-sm aspect-[3/4] rounded-3xl bg-muted/30 border-2 border-dashed border-border flex flex-col items-center justify-center gap-4">
-              <div className={`p-6 rounded-full ${step === 'front' ? 'gradient-secondary' : 'gradient-primary'}`}>
-                <Camera className="w-12 h-12 text-foreground" />
-              </div>
-              <div className="text-center">
-                <p className="font-semibold text-lg">
-                  {step === 'front' ? 'take a selfie 🤳' : 'now flip the camera 📷'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {step === 'front' ? 'show ur face!' : 'show what u see!'}
-                </p>
-              </div>
+          <div className="h-full relative">
+            <video 
+              ref={videoRef}
+              autoPlay 
+              playsInline 
+              muted
+              className="w-full h-full object-cover"
+              style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+            />
+            
+            {/* Step indicator */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full glass">
+              <p className="text-sm font-medium">
+                {step === 'camera-front' ? '1/2 selfie 🤳' : '2/2 flip it 📷'}
+              </p>
             </div>
+
+            {/* Camera switch button */}
+            <Button 
+              variant="glass" 
+              size="icon"
+              onClick={switchCamera}
+              className="absolute top-4 right-4"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </Button>
           </div>
         )}
       </div>
       
       {/* Bottom Controls */}
-      <div className="p-6 flex items-center justify-center gap-6">
+      <div className="p-6 flex items-center justify-center gap-6 glass">
         {step === 'preview' ? (
           <>
             <Button 
               variant="outline" 
               size="lg"
-              onClick={() => {
-                setStep('front');
-                setFrontPhoto(null);
-                setBackPhoto(null);
-              }}
+              onClick={handleRetake}
+              disabled={submitting}
               className="gap-2"
             >
               <RotateCcw className="w-5 h-5" />
@@ -127,18 +226,26 @@ const CameraModal = ({ challenge, onClose, onSubmit }: CameraModalProps) => {
               variant="neon" 
               size="lg"
               onClick={handleSubmit}
+              disabled={submitting}
               className="gap-2 px-8"
             >
-              <Sparkles className="w-5 h-5" />
-              post it!
+              {submitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  post it!
+                </>
+              )}
             </Button>
           </>
         ) : (
           <button
-            onClick={takePhoto}
-            className="w-20 h-20 rounded-full border-4 border-foreground flex items-center justify-center hover:scale-105 transition-transform active:scale-95"
+            onClick={handleCapture}
+            disabled={!stream}
+            className="w-20 h-20 rounded-full border-4 border-foreground flex items-center justify-center hover:scale-105 transition-transform active:scale-95 disabled:opacity-50"
           >
-            <div className={`w-16 h-16 rounded-full ${step === 'front' ? 'gradient-secondary' : 'gradient-primary'}`} />
+            <div className={`w-16 h-16 rounded-full ${step === 'camera-front' ? 'gradient-secondary' : 'gradient-primary'}`} />
           </button>
         )}
       </div>
