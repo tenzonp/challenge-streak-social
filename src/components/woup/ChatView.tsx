@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Play, Pause, Sparkles } from 'lucide-react';
+import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Lock, Settings, Image, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { Message, useMessages } from '@/hooks/useMessages';
@@ -8,6 +8,8 @@ import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ChatLockScreen, ChatLockSettings, useChatLock } from './ChatLock';
+import SnapEditor from './SnapEditor';
 
 interface ChatViewProps {
   friend: Profile;
@@ -20,13 +22,16 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   const { user } = useAuth();
   const { sendMessage, getMessages } = useMessages();
   const { isRecording, duration, startRecording, stopRecording, cancelRecording, uploadAudio, formatDuration } = useAudioRecorder();
+  const { isLocked, hasPassword } = useChatLock(friend.user_id);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [showLockSettings, setShowLockSettings] = useState(false);
+  const [snapImage, setSnapImage] = useState<string | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMessages = async () => {
     const msgs = await getMessages(friend.user_id);
@@ -78,6 +83,27 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
     }
   };
 
+  const handleSnapCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSnapImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSendSnap = async (editedUrl: string) => {
+    await sendMessage(friend.user_id, `📸 Sent a snap!`);
+    setSnapImage(null);
+  };
+
+  // Show lock screen if locked and not unlocked
+  if (isLocked && !unlocked) {
+    return <ChatLockScreen chatId={friend.user_id} onUnlock={() => setUnlocked(true)} />;
+  }
+
   const formatTime = (dateString: string) => new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const formatDate = (dateString: string) => {
@@ -128,12 +154,21 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
             </div>
           </button>
 
-          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => onVideoCall?.(friend)}>
-            <Video className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button 
+              variant={hasPassword ? 'ghost' : 'ghost'} 
+              size="icon" 
+              className={cn("rounded-full", hasPassword && "text-primary")}
+              onClick={() => setShowLockSettings(true)}
+            >
+              <Lock className="w-5 h-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => onVideoCall?.(friend)}>
+              <Video className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </div>
-
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
@@ -192,6 +227,10 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           ) : (
             <motion.div key="input" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               className="flex items-center gap-2">
+              <input type="file" ref={fileInputRef} accept="image/*" capture="environment" className="hidden" onChange={handleSnapCapture} />
+              <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={() => fileInputRef.current?.click()}>
+                <Camera className="w-5 h-5" />
+              </Button>
               <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={startRecording}><Mic className="w-5 h-5" /></Button>
               <div className="flex-1 flex items-center gap-2 bg-muted/50 rounded-2xl p-1.5 border border-border/30">
                 <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()}
@@ -202,6 +241,34 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           )}
         </AnimatePresence>
       </div>
+
+      {/* Lock Settings Modal */}
+      <AnimatePresence>
+        {showLockSettings && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center p-4"
+            onClick={() => setShowLockSettings(false)}
+          >
+            <div onClick={e => e.stopPropagation()}>
+              <ChatLockSettings chatId={friend.user_id} onClose={() => setShowLockSettings(false)} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Snap Editor */}
+      <AnimatePresence>
+        {snapImage && (
+          <SnapEditor 
+            imageUrl={snapImage} 
+            onSend={handleSendSnap} 
+            onClose={() => setSnapImage(null)} 
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
