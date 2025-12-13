@@ -22,6 +22,7 @@ import VideoCallModal from '@/components/woup/VideoCallModal';
 import BookmarksVault from '@/components/woup/BookmarksVault';
 import OnboardingFlow from '@/components/woup/OnboardingFlow';
 import FriendsListModal from '@/components/woup/FriendsListModal';
+import FriendRequestsModal from '@/components/woup/FriendRequestsModal';
 import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
 import { DayStreakCounter } from '@/components/woup/StreakBadges';
 import { useAuth } from '@/hooks/useAuth';
@@ -56,7 +57,18 @@ const Index = () => {
   const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
   const [feedTab, setFeedTab] = useState<FeedTab>('friends');
   const { posts, addReaction, markAsViewed, loading: feedLoading } = useAIFeed(feedTab);
-  const { friends, topFriends, allUsers, addFriend, refetch: refetchFriends } = useFriends();
+  const { 
+    friends, 
+    topFriends, 
+    pendingRequests, 
+    allUsers, 
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest,
+    hasSentRequest,
+    isFriend: checkIsFriend,
+    refetch: refetchFriends 
+  } = useFriends();
   const { conversations } = useMessages();
   const { showReward, setShowReward, checkAndClaimReward } = useStreakRewards();
   const { activeCompetitions, leaderboard, userEntry, joinCompetition } = useCompetitions();
@@ -78,6 +90,7 @@ const Index = () => {
   const [showVault, setShowVault] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showFriendsList, setShowFriendsList] = useState(false);
+  const [showFriendRequests, setShowFriendRequests] = useState(false);
 
   // Check if user needs onboarding
   useEffect(() => {
@@ -159,9 +172,9 @@ const Index = () => {
     }
   };
 
-  const handleAddFriend = async (userId: string) => {
-    const { error } = await addFriend(userId);
-    if (!error) toast({ title: 'friend added! 🎉' });
+  const handleSendFriendRequest = async (userId: string) => {
+    const { error } = await sendFriendRequest(userId);
+    if (!error) toast({ title: 'Friend request sent! 📤' });
   };
 
   const handleTabChange = (tab: Tab) => setActiveTab(tab);
@@ -186,7 +199,9 @@ const Index = () => {
         onProfileClick={() => setActiveTab('profile')} 
         pendingCount={pendingChallenges.length}
         unreadMessages={unreadCount}
+        friendRequestsCount={pendingRequests.length}
         onMessagesClick={() => setShowChatsList(true)}
+        onFriendRequestsClick={() => setShowFriendRequests(true)}
       />
       
       <main className="container mx-auto px-4">
@@ -369,7 +384,7 @@ const Index = () => {
                       onChallenge={handleChallenge} 
                       onViewProfile={handleViewProfile}
                       showAddButton 
-                      onAdd={handleAddFriend} 
+                      onAdd={handleSendFriendRequest} 
                     />
                   ))}
                 </div>
@@ -432,6 +447,17 @@ const Index = () => {
           onClose={() => setShowFriendsList(false)} 
           onViewProfile={(friend) => { setShowFriendsList(false); handleViewProfile(friend); }}
           onRefresh={refetchFriends}
+        />
+      )}
+      
+      {/* Friend Requests Modal */}
+      {showFriendRequests && (
+        <FriendRequestsModal 
+          requests={pendingRequests}
+          onClose={() => setShowFriendRequests(false)}
+          onAccept={acceptFriendRequest}
+          onDecline={declineFriendRequest}
+          onViewProfile={(user) => { setShowFriendRequests(false); handleViewProfile(user); }}
         />
       )}
     </div>

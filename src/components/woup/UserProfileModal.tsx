@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Flame, Music, Trophy, Zap, MessageCircle, UserPlus, Users } from 'lucide-react';
+import { X, Flame, Music, Trophy, Zap, MessageCircle, UserPlus, Users, Clock, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { usePosts, Post } from '@/hooks/usePosts';
@@ -17,12 +17,15 @@ interface UserProfileModalProps {
 
 const UserProfileModal = ({ user, onClose, onChat, onChallenge }: UserProfileModalProps) => {
   const { getUserPosts } = usePosts();
-  const { friends, addFriend } = useFriends();
+  const { sendFriendRequest, hasSentRequest, isFriend, cancelFriendRequest } = useFriends();
   const { toast } = useToast();
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [userResponses, setUserResponses] = useState<ChallengeResponse[]>([]);
   const [userFriendsCount, setUserFriendsCount] = useState(0);
-  const isFriend = friends.some(f => f.user_id === user.user_id);
+  const [sending, setSending] = useState(false);
+  
+  const isAlreadyFriend = isFriend(user.user_id);
+  const hasPendingRequest = hasSentRequest(user.user_id);
 
   useEffect(() => {
     const fetchUserContent = async () => {
@@ -53,9 +56,18 @@ const UserProfileModal = ({ user, onClose, onChat, onChallenge }: UserProfileMod
     fetchUserContent();
   }, [user.user_id]);
 
-  const handleAddFriend = async () => {
-    const { error } = await addFriend(user.user_id);
-    if (!error) toast({ title: 'friend added! 🎉' });
+  const handleSendRequest = async () => {
+    setSending(true);
+    const { error } = await sendFriendRequest(user.user_id);
+    if (!error) toast({ title: 'Friend request sent! 📤' });
+    setSending(false);
+  };
+
+  const handleCancelRequest = async () => {
+    setSending(true);
+    const { error } = await cancelFriendRequest(user.user_id);
+    if (!error) toast({ title: 'Request cancelled' });
+    setSending(false);
   };
 
   return (
@@ -218,10 +230,22 @@ const UserProfileModal = ({ user, onClose, onChat, onChallenge }: UserProfileMod
 
         {/* Action buttons */}
         <div className="p-4 border-t border-border/50 flex gap-2">
-          {!isFriend && (
-            <Button variant="outline" className="flex-1 gap-2" onClick={handleAddFriend}>
+          {!isAlreadyFriend && !hasPendingRequest && (
+            <Button variant="outline" className="flex-1 gap-2" onClick={handleSendRequest} disabled={sending}>
               <UserPlus className="w-4 h-4" />
               add friend
+            </Button>
+          )}
+          {!isAlreadyFriend && hasPendingRequest && (
+            <Button variant="ghost" className="flex-1 gap-2 text-neon-yellow" onClick={handleCancelRequest} disabled={sending}>
+              <Clock className="w-4 h-4" />
+              pending
+            </Button>
+          )}
+          {isAlreadyFriend && (
+            <Button variant="ghost" className="flex-1 gap-2 text-neon-green" disabled>
+              <Check className="w-4 h-4" />
+              friends
             </Button>
           )}
           <Button variant="glass" className="flex-1 gap-2" onClick={() => onChat(user)}>
