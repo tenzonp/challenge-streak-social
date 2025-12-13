@@ -70,27 +70,38 @@ serve(async (req) => {
       const tokens = await tokenResponse.json();
       console.log("Token exchange successful");
 
-      // Store tokens in database
+      // Store tokens in secure spotify_tokens table
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       
       const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
       
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          spotify_access_token: tokens.access_token,
-          spotify_refresh_token: tokens.refresh_token,
-          spotify_token_expires_at: expiresAt,
-          spotify_connected: true,
-        })
-        .eq("user_id", user_id);
+      // Upsert into spotify_tokens table
+      const { error: tokenError } = await supabase
+        .from("spotify_tokens")
+        .upsert({
+          user_id: user_id,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          token_expires_at: expiresAt,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
 
-      if (updateError) {
-        console.error("Failed to store tokens:", updateError);
+      if (tokenError) {
+        console.error("Failed to store tokens:", tokenError);
         return new Response(
           JSON.stringify({ error: "Failed to store tokens" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+
+      // Update profile to mark Spotify as connected
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ spotify_connected: true })
+        .eq("user_id", user_id);
+
+      if (profileError) {
+        console.error("Failed to update profile:", profileError);
       }
 
       console.log("Tokens stored successfully for user:", user_id);
@@ -103,12 +114,20 @@ serve(async (req) => {
     if (action === "disconnect") {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       
+      // Delete tokens from secure table
+      const { error: tokenError } = await supabase
+        .from("spotify_tokens")
+        .delete()
+        .eq("user_id", user_id);
+
+      if (tokenError) {
+        console.error("Failed to delete tokens:", tokenError);
+      }
+
+      // Update profile
       const { error } = await supabase
         .from("profiles")
         .update({
-          spotify_access_token: null,
-          spotify_refresh_token: null,
-          spotify_token_expires_at: null,
           spotify_connected: false,
           current_song: null,
           current_artist: null,
