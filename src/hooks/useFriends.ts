@@ -16,6 +16,17 @@ export interface FriendRequest {
   requester: Profile;
 }
 
+// Helper to send push notification
+const sendPushNotification = async (userId: string, type: string, title: string, body: string, data?: Record<string, any>) => {
+  try {
+    await supabase.functions.invoke('send-notification', {
+      body: { user_id: userId, type, title, body, data }
+    });
+  } catch (error) {
+    console.error('Failed to send notification:', error);
+  }
+};
+
 export const useFriends = () => {
   const { user } = useAuth();
   const [friends, setFriends] = useState<FriendWithStatus[]>([]);
@@ -119,9 +130,16 @@ export const useFriends = () => {
     return (data || []) as unknown as Profile[];
   };
 
-  // Send a friend request (pending status)
+  // Send a friend request (pending status) with push notification
   const sendFriendRequest = async (friendId: string) => {
     if (!user) return { error: new Error('Not authenticated') };
+
+    // Get sender's profile for notification
+    const { data: senderProfile } = await supabase
+      .from('profiles')
+      .select('display_name, username')
+      .eq('user_id', user.id)
+      .single();
 
     const { error } = await supabase
       .from('friendships')
@@ -133,14 +151,31 @@ export const useFriends = () => {
 
     if (!error) {
       setSentRequests(prev => [...prev, friendId]);
+      
+      // Send push notification to recipient
+      const senderName = senderProfile?.display_name || senderProfile?.username || 'Someone';
+      sendPushNotification(
+        friendId,
+        'friend_request',
+        'new friend request! 🤝',
+        `${senderName} wants to be your friend`,
+        { senderId: user.id }
+      );
     }
 
     return { error };
   };
 
-  // Accept a friend request
+  // Accept a friend request with push notification
   const acceptFriendRequest = async (requestId: string, requesterId: string) => {
     if (!user) return { error: new Error('Not authenticated') };
+
+    // Get acceptor's profile for notification
+    const { data: acceptorProfile } = await supabase
+      .from('profiles')
+      .select('display_name, username')
+      .eq('user_id', user.id)
+      .single();
 
     // Update the request status to accepted
     const { error } = await supabase
@@ -157,6 +192,16 @@ export const useFriends = () => {
           friend_id: requesterId,
           status: 'accepted',
         });
+
+      // Send push notification to the requester
+      const acceptorName = acceptorProfile?.display_name || acceptorProfile?.username || 'Someone';
+      sendPushNotification(
+        requesterId,
+        'friend_request',
+        'friend request accepted! 🎉',
+        `${acceptorName} is now your friend`,
+        { acceptorId: user.id }
+      );
 
       fetchFriends();
     }
