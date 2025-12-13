@@ -1,5 +1,6 @@
-import { Home, Zap, User, Plus } from 'lucide-react';
+import { Home, Zap, User, Plus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 type Tab = 'feed' | 'challenges' | 'profile';
 
@@ -10,60 +11,79 @@ interface BottomNavProps {
 }
 
 const BottomNav = ({ activeTab, onTabChange, onCreatePost }: BottomNavProps) => {
-  const tabs: { id: Tab; icon: typeof Home; label: string }[] = [
-    { id: 'feed', icon: Home, label: 'Feed' },
-    { id: 'challenges', icon: Zap, label: 'Friends' },
-    { id: 'profile', icon: User, label: 'Profile' },
+  const tabs: { id: Tab; icon: typeof Home; label: string; activeColor: string }[] = [
+    { id: 'feed', icon: Home, label: 'Feed', activeColor: 'text-neon-cyan' },
+    { id: 'challenges', icon: Zap, label: 'Social', activeColor: 'text-neon-pink' },
+    { id: 'profile', icon: User, label: 'You', activeColor: 'text-neon-purple' },
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 glass border-t border-border/50">
-      <div className="container mx-auto px-6 h-16 flex items-center justify-between pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 glass-strong border-t border-border/30">
+      <div className="container mx-auto px-6 h-18 flex items-center justify-between pb-safe">
         {/* Left tab */}
-        <button
+        <motion.button
           onClick={() => onTabChange(tabs[0].id)}
           className={cn(
-            "flex flex-col items-center gap-0.5 py-2 px-4 rounded-2xl transition-all duration-300",
-            activeTab === tabs[0].id ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            "flex flex-col items-center gap-1 py-2 px-5 rounded-2xl transition-all duration-300",
+            activeTab === tabs[0].id 
+              ? "bg-neon-cyan/20 text-neon-cyan" 
+              : "text-muted-foreground hover:text-foreground"
           )}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          <Home className={cn("w-6 h-6", activeTab === tabs[0].id && "text-primary")} />
-          <span className="text-[10px] font-medium">{tabs[0].label}</span>
-        </button>
+          <Home className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{tabs[0].label}</span>
+        </motion.button>
 
         {/* Center create button */}
-        <button 
+        <motion.button 
           onClick={onCreatePost} 
-          className="relative -mt-6"
+          className="relative -mt-8"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
         >
-          <div className="w-14 h-14 rounded-full gradient-primary flex items-center justify-center shadow-neon-green animate-glow">
-            <Plus className="w-7 h-7 text-primary-foreground" />
+          <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center shadow-neon-green dopamine-burst">
+            <Plus className="w-8 h-8 text-primary-foreground" />
           </div>
-        </button>
+          <motion.div 
+            className="absolute inset-0 rounded-full border-2 border-primary"
+            animate={{ scale: [1, 1.3], opacity: [0.8, 0] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          />
+        </motion.button>
 
-        {/* Middle tab */}
-        <button
+        {/* Middle tab - Social/Challenges */}
+        <motion.button
           onClick={() => onTabChange(tabs[1].id)}
           className={cn(
-            "flex flex-col items-center gap-0.5 py-2 px-4 rounded-2xl transition-all duration-300",
-            activeTab === tabs[1].id ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            "flex flex-col items-center gap-1 py-2 px-5 rounded-2xl transition-all duration-300 relative",
+            activeTab === tabs[1].id 
+              ? "bg-neon-pink/20 text-neon-pink" 
+              : "text-muted-foreground hover:text-foreground"
           )}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          <Zap className={cn("w-6 h-6", activeTab === tabs[1].id && "text-primary")} />
-          <span className="text-[10px] font-medium">{tabs[1].label}</span>
-        </button>
+          <Zap className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{tabs[1].label}</span>
+        </motion.button>
 
         {/* Right tab */}
-        <button
+        <motion.button
           onClick={() => onTabChange(tabs[2].id)}
           className={cn(
-            "flex flex-col items-center gap-0.5 py-2 px-4 rounded-2xl transition-all duration-300",
-            activeTab === tabs[2].id ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            "flex flex-col items-center gap-1 py-2 px-5 rounded-2xl transition-all duration-300",
+            activeTab === tabs[2].id 
+              ? "bg-neon-purple/20 text-neon-purple" 
+              : "text-muted-foreground hover:text-foreground"
           )}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          <User className={cn("w-6 h-6", activeTab === tabs[2].id && "text-primary")} />
-          <span className="text-[10px] font-medium">{tabs[2].label}</span>
-        </button>
+          <User className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{tabs[2].label}</span>
+        </motion.button>
       </div>
     </nav>
   );

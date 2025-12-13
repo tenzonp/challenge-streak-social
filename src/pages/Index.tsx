@@ -176,20 +176,34 @@ const Index = () => {
           <div className="space-y-6">
             {/* Feed Tabs */}
             <div className="flex gap-2">
-              <Button variant={feedTab === 'friends' ? 'neon' : 'outline'} size="sm" className="gap-2" onClick={() => setFeedTab('friends')}>
+              <button
+                onClick={() => setFeedTab('friends')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all ${
+                  feedTab === 'friends' 
+                    ? 'gradient-primary text-primary-foreground shadow-neon-green' 
+                    : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                }`}
+              >
                 <Users className="w-4 h-4" /> Friends
-              </Button>
-              <Button variant={feedTab === 'global' ? 'neon' : 'outline'} size="sm" className="gap-2" onClick={() => setFeedTab('global')}>
+              </button>
+              <button
+                onClick={() => setFeedTab('global')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all ${
+                  feedTab === 'global' 
+                    ? 'gradient-accent text-accent-foreground shadow-neon-cyan' 
+                    : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                }`}
+              >
                 <Globe className="w-4 h-4" /> Global
-              </Button>
+              </button>
             </div>
 
             {/* Competitions */}
             {activeCompetitions.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <Trophy className="w-5 h-5 text-yellow-400" />
-                  <h2 className="font-semibold">Active Competition</h2>
+                  <Trophy className="w-5 h-5 text-neon-yellow" />
+                  <h2 className="font-bold text-lg">🏆 Active Competition</h2>
                 </div>
                 <CompetitionCard 
                   competition={activeCompetitions[0]}
@@ -201,16 +215,17 @@ const Index = () => {
               </section>
             )}
 
+            {/* HIGHLIGHTED: Pending Challenges */}
             {pendingChallenges.length > 0 && (
-              <section>
+              <section className="relative">
                 <div className="flex items-center gap-2 mb-4">
-                  <Zap className="w-5 h-5 text-secondary" />
-                  <h2 className="text-lg font-semibold">your challenges</h2>
-                  <span className="px-2 py-0.5 rounded-full gradient-secondary text-xs font-bold text-secondary-foreground">
-                    {pendingChallenges.length}
+                  <Zap className="w-6 h-6 text-neon-pink" />
+                  <h2 className="text-xl font-black text-gradient-challenge">⚡ challenges waiting!</h2>
+                  <span className="px-3 py-1 rounded-full gradient-challenge text-xs font-black text-primary-foreground animate-bounce">
+                    {pendingChallenges.length} NEW
                   </span>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {pendingChallenges.map(challenge => (
                     <ChallengeCard key={challenge.id} challenge={challenge} onRespond={handleRespond} />
                   ))}
@@ -220,13 +235,13 @@ const Index = () => {
             
             <section>
               <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">{feedTab === 'friends' ? 'friends feed' : 'global feed'}</h2>
+                <Sparkles className="w-5 h-5 text-neon-cyan" />
+                <h2 className="text-lg font-bold">{feedTab === 'friends' ? '✨ friends feed' : '🌍 global feed'}</h2>
               </div>
               {posts.length === 0 ? (
-                <div className="glass rounded-3xl p-8 text-center">
+                <div className="glass-strong rounded-3xl p-8 text-center">
                   <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">no posts yet!</p>
+                  <p className="text-muted-foreground">no posts yet! be the first 🚀</p>
                 </div>
               ) : (
                 <div className="space-y-6">
