@@ -348,6 +348,39 @@ export type Database = {
           },
         ]
       }
+      notification_logs: {
+        Row: {
+          body: string
+          created_at: string
+          error_message: string | null
+          id: string
+          notification_type: string
+          status: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notification_type: string
+          status?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notification_type?: string
+          status?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           achievement_unlocks_enabled: boolean
@@ -604,6 +637,54 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      scheduled_notifications: {
+        Row: {
+          body: string
+          created_at: string
+          cron_expression: string | null
+          id: string
+          is_active: boolean | null
+          is_recurring: boolean | null
+          last_sent_at: string | null
+          notification_type: string
+          scheduled_for: string | null
+          sent_count: number | null
+          target_audience: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          cron_expression?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_recurring?: boolean | null
+          last_sent_at?: string | null
+          notification_type?: string
+          scheduled_for?: string | null
+          sent_count?: number | null
+          target_audience?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          cron_expression?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_recurring?: boolean | null
+          last_sent_at?: string | null
+          notification_type?: string
+          scheduled_for?: string | null
+          sent_count?: number | null
+          target_audience?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       spotify_tokens: {
         Row: {
