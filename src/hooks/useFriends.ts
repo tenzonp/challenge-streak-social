@@ -3,19 +3,25 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/hooks/useProfile';
 
+export interface FriendWithStatus extends Profile {
+  is_top_friend?: boolean;
+}
+
 export const useFriends = () => {
   const { user } = useAuth();
-  const [friends, setFriends] = useState<Profile[]>([]);
+  const [friends, setFriends] = useState<FriendWithStatus[]>([]);
+  const [topFriends, setTopFriends] = useState<Profile[]>([]);
   const [allUsers, setAllUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchFriends = async () => {
     if (!user) return;
 
-    // Get accepted friendships
+    // Get accepted friendships with top friend status
     const { data: friendships, error } = await supabase
       .from('friendships')
       .select(`
+        is_top_friend,
         friend:profiles!friendships_friend_id_fkey(*)
       `)
       .eq('user_id', user.id)
@@ -23,9 +29,17 @@ export const useFriends = () => {
 
     if (!error && friendships) {
       const friendProfiles = friendships
-        .map(f => f.friend as Profile | null)
-        .filter((f): f is Profile => f !== null);
+        .map(f => {
+          const friend = f.friend as Profile | null;
+          if (friend) {
+            return { ...friend, is_top_friend: f.is_top_friend } as FriendWithStatus;
+          }
+          return null;
+        })
+        .filter((f): f is FriendWithStatus => f !== null);
+      
       setFriends(friendProfiles);
+      setTopFriends(friendProfiles.filter(f => f.is_top_friend));
     }
 
     // Get all users for discovery (excluding current user)
@@ -36,7 +50,7 @@ export const useFriends = () => {
       .limit(50);
 
     if (users) {
-      setAllUsers(users as Profile[]);
+      setAllUsers(users as unknown as Profile[]);
     }
 
     setLoading(false);
@@ -56,7 +70,7 @@ export const useFriends = () => {
       .neq('user_id', user?.id || '')
       .limit(20);
     
-    return (data || []) as Profile[];
+    return (data || []) as unknown as Profile[];
   };
 
   const addFriend = async (friendId: string) => {
@@ -86,5 +100,5 @@ export const useFriends = () => {
     return { error };
   };
 
-  return { friends, allUsers, loading, addFriend, searchUsers, refetch: fetchFriends };
+  return { friends, topFriends, allUsers, loading, addFriend, searchUsers, refetch: fetchFriends };
 };

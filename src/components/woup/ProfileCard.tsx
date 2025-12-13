@@ -1,28 +1,33 @@
 import { useState, useEffect } from 'react';
-import { Flame, Edit2, LogOut, Trophy, ChevronRight, Lock, Bookmark } from 'lucide-react';
+import { Flame, Edit2, LogOut, Trophy, ChevronRight, Lock, Bookmark, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { useStreakRewards } from '@/hooks/useStreakRewards';
 import { usePosts, Post } from '@/hooks/usePosts';
 import { useBookmarks } from '@/hooks/useBookmarks';
+import { useFriends } from '@/hooks/useFriends';
 import { supabase } from '@/integrations/supabase/client';
 import { useChallenges, ChallengeResponse } from '@/hooks/useChallenges';
 import SpotifyConnect from './SpotifyConnect';
 import { StreakBadges, DayStreakCounter } from './StreakBadges';
+import TopFriendsBadges from './TopFriendsBadges';
 
 interface ProfileCardProps {
   profile: Profile;
   onEdit: () => void;
   onShowLeaderboard: () => void;
   onShowVault: () => void;
+  onShowFriends: () => void;
+  onViewUserProfile?: (user: Profile) => void;
 }
 
-const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault }: ProfileCardProps) => {
+const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFriends, onViewUserProfile }: ProfileCardProps) => {
   const { signOut } = useAuth();
   const { getClaimedBadges, getNextMilestone } = useStreakRewards();
   const { getUserPosts } = usePosts();
   const { bookmarks } = useBookmarks();
+  const { friends, topFriends } = useFriends();
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [userResponses, setUserResponses] = useState<ChallengeResponse[]>([]);
 
@@ -90,6 +95,31 @@ const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault }: Profil
       {/* Day Streak Counter with Badges */}
       <DayStreakCounter streak={profile.streak} size="md" />
       <StreakBadges streak={profile.streak} longestStreak={profile.longest_streak} size="md" />
+
+      {/* Top Friends */}
+      <TopFriendsBadges topFriends={topFriends} onViewProfile={onViewUserProfile} />
+
+      {/* Friends Count - Clickable */}
+      <button 
+        onClick={onShowFriends}
+        className="w-full glass rounded-2xl p-4 text-left hover:bg-muted/20 transition-colors"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-12 h-12 rounded-2xl flex items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}40, ${profile.color_secondary || '#f472b6'}40)` }}
+            >
+              <Users className="w-5 h-5" style={{ color: profile.color_primary || 'hsl(var(--primary))' }} />
+            </div>
+            <div>
+              <p className="font-semibold">{friends.length} Friends</p>
+              <p className="text-sm text-muted-foreground">{topFriends.length} top friends</p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </div>
+      </button>
 
       {/* Spotify */}
       <SpotifyConnect profile={profile} />

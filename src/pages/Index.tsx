@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import Header from '@/components/woup/Header';
 import BottomNav from '@/components/woup/BottomNav';
 import ChallengeCard from '@/components/woup/ChallengeCard';
@@ -19,6 +20,8 @@ import StreakLeaderboard from '@/components/woup/StreakLeaderboard';
 import CompetitionCard from '@/components/woup/CompetitionCard';
 import VideoCallModal from '@/components/woup/VideoCallModal';
 import BookmarksVault from '@/components/woup/BookmarksVault';
+import OnboardingFlow from '@/components/woup/OnboardingFlow';
+import FriendsListModal from '@/components/woup/FriendsListModal';
 import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
 import { DayStreakCounter } from '@/components/woup/StreakBadges';
 import { useAuth } from '@/hooks/useAuth';
@@ -31,6 +34,7 @@ import { useChallengeExpiry } from '@/hooks/useChallengeExpiry';
 import { useStreakRewards } from '@/hooks/useStreakRewards';
 import { useCompetitions } from '@/hooks/useCompetitions';
 import { useAchievements } from '@/hooks/useAchievements';
+import { supabase } from '@/integrations/supabase/client';
 import { Sparkles, Zap, MessageCircle, Loader2, Search, Users, Globe, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -48,11 +52,11 @@ interface LocationState {
 const Index = () => {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { profile, loading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading, updateProfile } = useProfile();
   const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
   const [feedTab, setFeedTab] = useState<FeedTab>('friends');
   const { posts, addReaction, markAsViewed, loading: feedLoading } = useAIFeed(feedTab);
-  const { friends, allUsers, addFriend } = useFriends();
+  const { friends, topFriends, allUsers, addFriend, refetch: refetchFriends } = useFriends();
   const { conversations } = useMessages();
   const { showReward, setShowReward, checkAndClaimReward } = useStreakRewards();
   const { activeCompetitions, leaderboard, userEntry, joinCompetition } = useCompetitions();
@@ -72,6 +76,20 @@ const Index = () => {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [videoCallWith, setVideoCallWith] = useState<Profile | null>(null);
   const [showVault, setShowVault] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showFriendsList, setShowFriendsList] = useState(false);
+
+  // Check if user needs onboarding
+  useEffect(() => {
+    if (profile && !profile.has_completed_onboarding) {
+      setShowOnboarding(true);
+    }
+  }, [profile]);
+
+  const handleCompleteOnboarding = async () => {
+    setShowOnboarding(false);
+    await updateProfile({ has_completed_onboarding: true });
+  };
 
   // Handle navigation state from notifications
   useEffect(() => {
@@ -366,6 +384,8 @@ const Index = () => {
             onEdit={() => setShowProfileEdit(true)} 
             onShowLeaderboard={() => setShowLeaderboard(true)}
             onShowVault={() => setShowVault(true)}
+            onShowFriends={() => setShowFriendsList(true)}
+            onViewUserProfile={handleViewProfile}
           />
         )}
       </main>
@@ -399,6 +419,21 @@ const Index = () => {
       {videoCallWith && <VideoCallModal friend={videoCallWith} onClose={() => setVideoCallWith(null)} />}
       {newAchievement && <AchievementUnlockModal achievement={newAchievement} onClose={() => setNewAchievement(null)} />}
       {showVault && <BookmarksVault onClose={() => setShowVault(false)} />}
+      
+      {/* Onboarding Flow */}
+      <AnimatePresence>
+        {showOnboarding && <OnboardingFlow onComplete={handleCompleteOnboarding} />}
+      </AnimatePresence>
+      
+      {/* Friends List Modal */}
+      {showFriendsList && (
+        <FriendsListModal 
+          friends={friends} 
+          onClose={() => setShowFriendsList(false)} 
+          onViewProfile={(friend) => { setShowFriendsList(false); handleViewProfile(friend); }}
+          onRefresh={refetchFriends}
+        />
+      )}
     </div>
   );
 };
