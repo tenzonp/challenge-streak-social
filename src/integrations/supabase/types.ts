@@ -282,6 +282,7 @@ export type Database = {
           created_at: string
           friend_requests_enabled: boolean
           id: string
+          last_activity_view_at: string | null
           messages_enabled: boolean
           streak_reminders_enabled: boolean
           updated_at: string
@@ -294,6 +295,7 @@ export type Database = {
           created_at?: string
           friend_requests_enabled?: boolean
           id?: string
+          last_activity_view_at?: string | null
           messages_enabled?: boolean
           streak_reminders_enabled?: boolean
           updated_at?: string
@@ -306,9 +308,34 @@ export type Database = {
           created_at?: string
           friend_requests_enabled?: boolean
           id?: string
+          last_activity_view_at?: string | null
           messages_enabled?: boolean
           streak_reminders_enabled?: boolean
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_reads: {
+        Row: {
+          id: string
+          notification_id: string
+          notification_type: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          notification_id: string
+          notification_type: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          notification_id?: string
+          notification_type?: string
+          read_at?: string
           user_id?: string
         }
         Relationships: []
