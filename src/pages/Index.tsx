@@ -23,6 +23,7 @@ import BookmarksVault from '@/components/woup/BookmarksVault';
 import OnboardingFlow from '@/components/woup/OnboardingFlow';
 import FriendsListModal from '@/components/woup/FriendsListModal';
 import FriendRequestsModal from '@/components/woup/FriendRequestsModal';
+import SuggestedFriends from '@/components/woup/SuggestedFriends';
 import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
 import { DayStreakCounter } from '@/components/woup/StreakBadges';
 import { useAuth } from '@/hooks/useAuth';
@@ -61,6 +62,7 @@ const Index = () => {
     friends, 
     topFriends, 
     pendingRequests, 
+    sentRequests,
     allUsers, 
     sendFriendRequest,
     acceptFriendRequest,
@@ -372,12 +374,21 @@ const Index = () => {
               )}
             </section>
 
+            {/* Suggested Friends Section */}
+            <section className="glass rounded-3xl p-4">
+              <SuggestedFriends 
+                friends={friends}
+                sentRequests={sentRequests}
+                onSendRequest={handleSendFriendRequest}
+              />
+            </section>
+
             {/* Discover section */}
-            {allUsers.filter(u => !friends.some(f => f.user_id === u.user_id)).length > 0 && (
+            {allUsers.filter(u => !friends.some(f => f.user_id === u.user_id) && !sentRequests.includes(u.user_id)).length > 0 && (
               <section>
                 <h2 className="font-semibold mb-4">discover ✨</h2>
                 <div className="space-y-3">
-                  {allUsers.filter(u => !friends.some(f => f.user_id === u.user_id)).slice(0, 5).map(user => (
+                  {allUsers.filter(u => !friends.some(f => f.user_id === u.user_id) && !sentRequests.includes(u.user_id)).slice(0, 5).map(user => (
                     <FriendCard 
                       key={user.id} 
                       friend={user} 
