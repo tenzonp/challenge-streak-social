@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bell, MessageCircle, Flame, Users, Trophy, Award, Loader2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Bell, MessageCircle, Flame, Users, Trophy, Award, Loader2, ChevronRight, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,6 +23,7 @@ interface ActivityItem {
   title: string;
   description: string;
   created_at: string;
+  isRead: boolean;
   // Navigation data
   senderId?: string;
   challengeId?: string;
@@ -36,6 +37,7 @@ const NotificationSettings = () => {
   const { isSupported, isSubscribed, isLoading: pushLoading, permission, subscribe, unsubscribe } = usePushNotifications();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPrefs>({
     challenges_enabled: true,
     messages_enabled: true,
@@ -46,11 +48,13 @@ const NotificationSettings = () => {
   });
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
+  const [readNotifications, setReadNotifications] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
     fetchPreferences();
     fetchActivity();
+    fetchReadNotifications();
   }, [user]);
 
   const fetchPreferences = async () => {
@@ -68,6 +72,19 @@ const NotificationSettings = () => {
       });
     }
     setLoading(false);
+  };
+
+  const fetchReadNotifications = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('notification_reads')
+      .select('notification_type, notification_id')
+      .eq('user_id', user.id);
+
+    if (data) {
+      const readSet = new Set(data.map(r => `${r.notification_type}-${r.notification_id}`));
+      setReadNotifications(readSet);
+    }
   };
 
   const fetchActivity = async () => {
@@ -129,6 +146,7 @@ const NotificationSettings = () => {
             ? `${c.from_profile.display_name} sent you: "${c.challenge_text}"`
             : c.challenge_text,
           created_at: c.created_at,
+          isRead: readNotifications.has(`challenge-${c.id}`),
           challengeId: c.id,
           senderId: c.from_user_id,
         });
@@ -143,6 +161,7 @@ const NotificationSettings = () => {
           title: m.sender?.display_name ? `New message from ${m.sender.display_name}` : 'New message',
           description: m.content,
           created_at: m.created_at,
+          isRead: readNotifications.has(`message-${m.id}`),
           senderId: m.sender_id,
         });
       });
@@ -151,13 +170,14 @@ const NotificationSettings = () => {
     if (friendsRes.data) {
       friendsRes.data.forEach((f: any) => {
         items.push({
-          id: `friend-${f.id}`,
+          id: `friend_request-${f.id}`,
           type: 'friend_request',
           title: 'Friend request',
           description: f.user?.display_name
             ? `${f.user.display_name} wants to connect`
             : 'New friend request',
           created_at: f.created_at,
+          isRead: readNotifications.has(`friend_request-${f.id}`),
           friendshipId: f.id,
           senderId: f.user_id,
         });
@@ -207,16 +227,67 @@ const NotificationSettings = () => {
     }
   };
 
-  const handleActivityTap = (item: ActivityItem) => {
-    // Navigate based on item type and store context
+  const handleTestPush = async () => {
+    if (!isSubscribed || !user) {
+      toast({ title: 'Enable push notifications first', variant: 'destructive' });
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('push-notifications', {
+        body: {
+          action: 'send',
+          userId: user.id,
+          payload: {
+            title: 'Test Notification 🎉',
+            body: 'Push notifications are working! You\'ll receive alerts for challenges, messages, and more.',
+            tag: 'test-notification',
+            data: { url: '/notifications' }
+          }
+        }
+      });
+
+      if (error) {
+        console.error('Test push error:', error);
+        toast({ title: 'Failed to send test', description: error.message, variant: 'destructive' });
+      } else if (data?.sent > 0) {
+        toast({ title: 'Test notification sent! Check your device.' });
+      } else {
+        toast({ title: 'No active subscriptions found', variant: 'destructive' });
+      }
+    } catch (err) {
+      console.error('Test push error:', err);
+      toast({ title: 'Failed to send test notification', variant: 'destructive' });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
+  const handleActivityTap = async (item: ActivityItem) => {
+    // Mark as read
+    if (!item.isRead && user) {
+      const [type, id] = item.id.split('-');
+      const notificationId = item.id.replace(`${type}-`, '');
+      
+      await supabase.from('notification_reads').upsert({
+        user_id: user.id,
+        notification_type: type,
+        notification_id: notificationId,
+      }, { onConflict: 'user_id,notification_type,notification_id' });
+
+      setReadNotifications(prev => new Set([...prev, item.id]));
+      setActivity(prev => prev.map(a => 
+        a.id === item.id ? { ...a, isRead: true } : a
+      ));
+    }
+
+    // Navigate based on item type
     if (item.type === 'message' && item.senderId) {
-      // Navigate to home with chat state
       navigate('/', { state: { openChatWith: item.senderId } });
     } else if (item.type === 'challenge') {
-      // Navigate to challenges tab
       navigate('/', { state: { activeTab: 'challenges', highlightChallenge: item.challengeId } });
     } else if (item.type === 'friend_request' && item.senderId) {
-      // Navigate to home with user profile open
       navigate('/', { state: { viewProfile: item.senderId } });
     }
   };
@@ -234,6 +305,8 @@ const NotificationSettings = () => {
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${diffDays}d ago`;
   };
+
+  const unreadCount = activity.filter(a => !a.isRead).length;
 
   const notificationTypes = [
     { key: 'challenges_enabled' as const, icon: Flame, label: 'New Challenges', desc: 'When someone sends you a challenge' },
@@ -274,9 +347,9 @@ const NotificationSettings = () => {
                 Tap to view details
               </p>
             </div>
-            {activity.length > 0 && (
+            {unreadCount > 0 && (
               <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary font-medium">
-                {activity.length} new
+                {unreadCount} unread
               </span>
             )}
           </div>
@@ -298,9 +371,13 @@ const NotificationSettings = () => {
                 <button
                   key={item.id}
                   onClick={() => handleActivityTap(item)}
-                  className="w-full flex items-center gap-3 p-3 rounded-2xl bg-muted/40 hover:bg-muted/60 transition-colors text-left active:scale-[0.98]"
+                  className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-colors text-left active:scale-[0.98] ${
+                    item.isRead 
+                      ? 'bg-muted/20 opacity-60' 
+                      : 'bg-muted/40 hover:bg-muted/60'
+                  }`}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center relative ${
                     item.type === 'challenge' ? 'bg-orange-500/20' :
                     item.type === 'message' ? 'bg-blue-500/20' :
                     'bg-green-500/20'
@@ -308,10 +385,15 @@ const NotificationSettings = () => {
                     {item.type === 'challenge' && <Flame className="w-5 h-5 text-orange-500" />}
                     {item.type === 'message' && <MessageCircle className="w-5 h-5 text-blue-500" />}
                     {item.type === 'friend_request' && <Users className="w-5 h-5 text-green-500" />}
+                    {!item.isRead && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium truncate">{item.title}</p>
+                      <p className={`text-sm truncate ${item.isRead ? 'font-normal' : 'font-medium'}`}>
+                        {item.title}
+                      </p>
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
                         {getTimeAgo(item.created_at)}
                       </span>
@@ -326,7 +408,7 @@ const NotificationSettings = () => {
         </section>
 
         {/* Push Notifications Master Toggle */}
-        <section className="glass rounded-3xl p-6">
+        <section className="glass rounded-3xl p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center">
@@ -353,16 +435,34 @@ const NotificationSettings = () => {
           </div>
 
           {permission === 'denied' && (
-            <p className="mt-4 text-sm text-destructive bg-destructive/10 p-3 rounded-xl">
+            <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-xl">
               Push notifications are blocked. Click the lock icon in your browser's address bar → Site Settings → Notifications → Allow.
             </p>
           )}
 
           {pushLoading && (
-            <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>Setting up notifications...</span>
             </div>
+          )}
+
+          {/* Test Push Button */}
+          {isSubscribed && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleTestPush}
+              disabled={sendingTest}
+              className="w-full gap-2"
+            >
+              {sendingTest ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              Send Test Notification
+            </Button>
           )}
         </section>
 
