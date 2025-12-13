@@ -212,6 +212,7 @@ export type Database = {
           created_at: string
           friend_id: string
           id: string
+          is_top_friend: boolean
           status: string
           user_id: string
         }
@@ -219,6 +220,7 @@ export type Database = {
           created_at?: string
           friend_id: string
           id?: string
+          is_top_friend?: boolean
           status?: string
           user_id: string
         }
@@ -226,6 +228,7 @@ export type Database = {
           created_at?: string
           friend_id?: string
           id?: string
+          is_top_friend?: boolean
           status?: string
           user_id?: string
         }
@@ -519,6 +522,7 @@ export type Database = {
           current_artist: string | null
           current_song: string | null
           display_name: string
+          has_completed_onboarding: boolean
           id: string
           interests: string[] | null
           longest_streak: number
@@ -539,6 +543,7 @@ export type Database = {
           current_artist?: string | null
           current_song?: string | null
           display_name: string
+          has_completed_onboarding?: boolean
           id?: string
           interests?: string[] | null
           longest_streak?: number
@@ -559,6 +564,7 @@ export type Database = {
           current_artist?: string | null
           current_song?: string | null
           display_name?: string
+          has_completed_onboarding?: boolean
           id?: string
           interests?: string[] | null
           longest_streak?: number

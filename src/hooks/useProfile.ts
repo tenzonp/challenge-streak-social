@@ -19,9 +19,7 @@ export interface Profile {
   current_artist: string | null;
   song_url: string | null;
   spotify_connected: boolean | null;
-  spotify_access_token: string | null;
-  spotify_refresh_token: string | null;
-  spotify_token_expires_at: string | null;
+  has_completed_onboarding: boolean;
   created_at: string;
   updated_at: string;
 }

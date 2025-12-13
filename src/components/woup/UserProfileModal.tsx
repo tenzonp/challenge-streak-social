@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Flame, Music, Trophy, Zap, MessageCircle, UserPlus } from 'lucide-react';
+import { X, Flame, Music, Trophy, Zap, MessageCircle, UserPlus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { usePosts, Post } from '@/hooks/usePosts';
@@ -21,7 +21,7 @@ const UserProfileModal = ({ user, onClose, onChat, onChallenge }: UserProfileMod
   const { toast } = useToast();
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [userResponses, setUserResponses] = useState<ChallengeResponse[]>([]);
-
+  const [userFriendsCount, setUserFriendsCount] = useState(0);
   const isFriend = friends.some(f => f.user_id === user.user_id);
 
   useEffect(() => {
@@ -39,6 +39,15 @@ const UserProfileModal = ({ user, onClose, onChat, onChallenge }: UserProfileMod
       if (data) {
         setUserResponses(data as ChallengeResponse[]);
       }
+
+      // Fetch friends count
+      const { count } = await supabase
+        .from('friendships')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.user_id)
+        .eq('status', 'accepted');
+      
+      setUserFriendsCount(count || 0);
     };
 
     fetchUserContent();
@@ -102,17 +111,24 @@ const UserProfileModal = ({ user, onClose, onChat, onChallenge }: UserProfileMod
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="glass rounded-2xl p-3 text-center">
               <div className="flex items-center justify-center gap-2 mb-1">
-                <Flame className="w-5 h-5 text-primary" />
+                <Users className="w-5 h-5 text-primary" />
+                <span className="text-2xl font-bold">{userFriendsCount}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">friends</p>
+            </div>
+            <div className="glass rounded-2xl p-3 text-center">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Flame className="w-5 h-5 text-neon-orange" />
                 <span className="text-2xl font-bold">{user.streak}</span>
               </div>
               <p className="text-xs text-muted-foreground">streak</p>
             </div>
             <div className="glass rounded-2xl p-3 text-center">
               <div className="flex items-center justify-center gap-2 mb-1">
-                <Trophy className="w-5 h-5 text-secondary" />
+                <Trophy className="w-5 h-5 text-neon-yellow" />
                 <span className="text-2xl font-bold">{user.longest_streak}</span>
               </div>
               <p className="text-xs text-muted-foreground">best</p>
