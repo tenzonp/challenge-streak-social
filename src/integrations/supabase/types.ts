@@ -490,10 +490,7 @@ export type Database = {
           interests: string[] | null
           longest_streak: number
           song_url: string | null
-          spotify_access_token: string | null
           spotify_connected: boolean | null
-          spotify_refresh_token: string | null
-          spotify_token_expires_at: string | null
           streak: number
           updated_at: string
           user_id: string
@@ -513,10 +510,7 @@ export type Database = {
           interests?: string[] | null
           longest_streak?: number
           song_url?: string | null
-          spotify_access_token?: string | null
           spotify_connected?: boolean | null
-          spotify_refresh_token?: string | null
-          spotify_token_expires_at?: string | null
           streak?: number
           updated_at?: string
           user_id: string
@@ -536,10 +530,7 @@ export type Database = {
           interests?: string[] | null
           longest_streak?: number
           song_url?: string | null
-          spotify_access_token?: string | null
           spotify_connected?: boolean | null
-          spotify_refresh_token?: string | null
-          spotify_token_expires_at?: string | null
           streak?: number
           updated_at?: string
           user_id?: string
@@ -613,6 +604,36 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      spotify_tokens: {
+        Row: {
+          access_token: string | null
+          created_at: string
+          id: string
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string
+          id?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string
+          id?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       streak_rewards: {
         Row: {
@@ -696,7 +717,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_post_views: {
+        Args: { p_response_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

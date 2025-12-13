@@ -22,14 +22,14 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get user's Spotify tokens
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("spotify_access_token, spotify_refresh_token, spotify_token_expires_at")
+    // Get user's Spotify tokens from secure table
+    const { data: tokenData, error: tokenError } = await supabase
+      .from("spotify_tokens")
+      .select("access_token, refresh_token, token_expires_at")
       .eq("user_id", user_id)
       .single();
 
-    if (profileError || !profile?.spotify_access_token) {
+    if (tokenError || !tokenData?.access_token) {
       console.log("No Spotify connection for user");
       return new Response(
         JSON.stringify({ connected: false }),
@@ -37,10 +37,10 @@ serve(async (req) => {
       );
     }
 
-    let accessToken = profile.spotify_access_token;
+    let accessToken = tokenData.access_token;
 
     // Check if token is expired
-    if (new Date(profile.spotify_token_expires_at) < new Date()) {
+    if (new Date(tokenData.token_expires_at) < new Date()) {
       console.log("Token expired, refreshing...");
       
       const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
@@ -51,7 +51,7 @@ serve(async (req) => {
         },
         body: new URLSearchParams({
           grant_type: "refresh_token",
-          refresh_token: profile.spotify_refresh_token,
+          refresh_token: tokenData.refresh_token,
         }),
       });
 
@@ -68,12 +68,14 @@ serve(async (req) => {
       
       const expiresAt = new Date(Date.now() + newTokens.expires_in * 1000).toISOString();
       
+      // Update tokens in secure table
       await supabase
-        .from("profiles")
+        .from("spotify_tokens")
         .update({
-          spotify_access_token: accessToken,
-          spotify_token_expires_at: expiresAt,
-          ...(newTokens.refresh_token && { spotify_refresh_token: newTokens.refresh_token }),
+          access_token: accessToken,
+          token_expires_at: expiresAt,
+          ...(newTokens.refresh_token && { refresh_token: newTokens.refresh_token }),
+          updated_at: new Date().toISOString(),
         })
         .eq("user_id", user_id);
 
@@ -122,7 +124,7 @@ serve(async (req) => {
 
       console.log("Currently playing:", songName, "by", artistName);
 
-      // Update profile with current song
+      // Update profile with current song (non-sensitive data)
       await supabase
         .from("profiles")
         .update({

@@ -4,7 +4,7 @@ project_id = "iaftjgxbypwxzmuepetq"
 verify_jwt = true
 
 [functions.send-notification]
-verify_jwt = false
+verify_jwt = true
 
 [functions.spotify-auth]
 verify_jwt = true
