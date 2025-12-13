@@ -1,4 +1,4 @@
-import { Bell, User, MessageCircle, Flame, Zap } from 'lucide-react';
+import { Bell, User, MessageCircle, Flame, Zap, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useProfile } from '@/hooks/useProfile';
 import { useNavigate } from 'react-router-dom';
@@ -8,10 +8,12 @@ interface HeaderProps {
   onProfileClick: () => void;
   pendingCount: number;
   unreadMessages?: number;
+  friendRequestsCount?: number;
   onMessagesClick?: () => void;
+  onFriendRequestsClick?: () => void;
 }
 
-const Header = ({ onProfileClick, pendingCount, unreadMessages = 0, onMessagesClick }: HeaderProps) => {
+const Header = ({ onProfileClick, pendingCount, unreadMessages = 0, friendRequestsCount = 0, onMessagesClick, onFriendRequestsClick }: HeaderProps) => {
   const { profile } = useProfile();
   const navigate = useNavigate();
 
@@ -43,6 +45,34 @@ const Header = ({ onProfileClick, pendingCount, unreadMessages = 0, onMessagesCl
             <span className="font-black text-neon-orange">{profile?.streak || 0}</span>
             <span className="text-xs text-muted-foreground font-medium">day{(profile?.streak || 0) !== 1 ? 's' : ''}</span>
           </motion.div>
+          
+          {/* Friend Requests */}
+          {onFriendRequestsClick && (
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <Button variant="glass" size="icon" className="relative" onClick={onFriendRequestsClick}>
+                <UserPlus className={friendRequestsCount > 0 ? "w-5 h-5 text-neon-green" : "w-5 h-5"} />
+                <AnimatePresence>
+                  {friendRequestsCount > 0 && (
+                    <>
+                      <motion.span 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-primary text-xs font-bold flex items-center justify-center text-primary-foreground"
+                      >
+                        {friendRequestsCount > 9 ? '9+' : friendRequestsCount}
+                      </motion.span>
+                      <motion.span 
+                        className="absolute inset-0 rounded-xl border-2 border-neon-green"
+                        animate={{ scale: [1, 1.3], opacity: [1, 0] }}
+                        transition={{ duration: 1, repeat: Infinity }}
+                      />
+                    </>
+                  )}
+                </AnimatePresence>
+              </Button>
+            </motion.div>
+          )}
           
           {/* Messages */}
           {onMessagesClick && (

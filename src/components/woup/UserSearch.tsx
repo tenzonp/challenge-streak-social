@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, X, UserPlus, MessageCircle, Zap } from 'lucide-react';
+import { Search, X, UserPlus, MessageCircle, Zap, Clock, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useFriends } from '@/hooks/useFriends';
@@ -12,11 +12,12 @@ interface UserSearchProps {
 }
 
 const UserSearch = ({ onChallenge, onChat, onClose }: UserSearchProps) => {
-  const { searchUsers, addFriend, friends } = useFriends();
+  const { searchUsers, sendFriendRequest, hasSentRequest, isFriend } = useFriends();
   const { toast } = useToast();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Profile[]>([]);
   const [searching, setSearching] = useState(false);
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -27,14 +28,20 @@ const UserSearch = ({ onChallenge, onChat, onClose }: UserSearchProps) => {
     setSearching(false);
   };
 
-  const handleAdd = async (userId: string) => {
-    const { error } = await addFriend(userId);
+  const handleSendRequest = async (userId: string) => {
+    setSendingTo(userId);
+    const { error } = await sendFriendRequest(userId);
     if (!error) {
-      toast({ title: 'friend added! 🎉' });
+      toast({ title: 'Friend request sent! 📤' });
     }
+    setSendingTo(null);
   };
 
-  const isFriend = (userId: string) => friends.some(f => f.user_id === userId);
+  const getButtonState = (userId: string) => {
+    if (isFriend(userId)) return 'friend';
+    if (hasSentRequest(userId)) return 'pending';
+    return 'add';
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
@@ -74,35 +81,54 @@ const UserSearch = ({ onChallenge, onChat, onClose }: UserSearchProps) => {
             <p className="text-center text-muted-foreground py-8">no users found</p>
           )}
           
-          {results.map(user => (
-            <div key={user.id} className="glass rounded-2xl p-4 flex items-center gap-3">
-              <img 
-                src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.user_id}`}
-                className="w-12 h-12 rounded-xl"
-                style={{ 
-                  borderColor: user.color_primary || undefined,
-                  borderWidth: user.color_primary ? 2 : 0
-                }}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold truncate">{user.display_name}</p>
-                <p className="text-sm text-muted-foreground truncate">@{user.username}</p>
-              </div>
-              <div className="flex gap-2">
-                {!isFriend(user.user_id) && (
-                  <Button variant="outline" size="icon" onClick={() => handleAdd(user.user_id)}>
-                    <UserPlus className="w-4 h-4" />
+          {results.map(user => {
+            const state = getButtonState(user.user_id);
+            
+            return (
+              <div key={user.id} className="glass rounded-2xl p-4 flex items-center gap-3">
+                <img 
+                  src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.user_id}`}
+                  className="w-12 h-12 rounded-xl"
+                  style={{ 
+                    borderColor: user.color_primary || undefined,
+                    borderWidth: user.color_primary ? 2 : 0
+                  }}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold truncate">{user.display_name}</p>
+                  <p className="text-sm text-muted-foreground truncate">@{user.username}</p>
+                </div>
+                <div className="flex gap-2">
+                  {state === 'add' && (
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => handleSendRequest(user.user_id)}
+                      disabled={sendingTo === user.user_id}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {state === 'pending' && (
+                    <Button variant="ghost" size="icon" disabled className="text-neon-yellow">
+                      <Clock className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {state === 'friend' && (
+                    <Button variant="ghost" size="icon" disabled className="text-neon-green">
+                      <Check className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <Button variant="glass" size="icon" onClick={() => onChat(user)}>
+                    <MessageCircle className="w-4 h-4" />
                   </Button>
-                )}
-                <Button variant="glass" size="icon" onClick={() => onChat(user)}>
-                  <MessageCircle className="w-4 h-4" />
-                </Button>
-                <Button variant="secondary" size="icon" onClick={() => onChallenge(user.user_id)}>
-                  <Zap className="w-4 h-4" />
-                </Button>
+                  <Button variant="secondary" size="icon" onClick={() => onChallenge(user.user_id)}>
+                    <Zap className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

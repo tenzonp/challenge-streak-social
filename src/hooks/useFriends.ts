@@ -7,10 +7,21 @@ export interface FriendWithStatus extends Profile {
   is_top_friend?: boolean;
 }
 
+export interface FriendRequest {
+  id: string;
+  user_id: string;
+  friend_id: string;
+  status: string;
+  created_at: string;
+  requester: Profile;
+}
+
 export const useFriends = () => {
   const { user } = useAuth();
   const [friends, setFriends] = useState<FriendWithStatus[]>([]);
   const [topFriends, setTopFriends] = useState<Profile[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
+  const [sentRequests, setSentRequests] = useState<string[]>([]); // user_ids of people we sent requests to
   const [allUsers, setAllUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,6 +51,41 @@ export const useFriends = () => {
       
       setFriends(friendProfiles);
       setTopFriends(friendProfiles.filter(f => f.is_top_friend));
+    }
+
+    // Get pending friend requests (people who want to be our friend)
+    const { data: requests } = await supabase
+      .from('friendships')
+      .select(`
+        id,
+        user_id,
+        friend_id,
+        status,
+        created_at,
+        requester:profiles!friendships_user_id_fkey(*)
+      `)
+      .eq('friend_id', user.id)
+      .eq('status', 'pending');
+
+    if (requests) {
+      const formattedRequests = requests
+        .map(r => ({
+          ...r,
+          requester: r.requester as unknown as Profile
+        }))
+        .filter(r => r.requester !== null) as FriendRequest[];
+      setPendingRequests(formattedRequests);
+    }
+
+    // Get sent requests (people we sent requests to)
+    const { data: sent } = await supabase
+      .from('friendships')
+      .select('friend_id')
+      .eq('user_id', user.id)
+      .eq('status', 'pending');
+
+    if (sent) {
+      setSentRequests(sent.map(s => s.friend_id));
     }
 
     // Get all users for discovery (excluding current user)
@@ -73,7 +119,8 @@ export const useFriends = () => {
     return (data || []) as unknown as Profile[];
   };
 
-  const addFriend = async (friendId: string) => {
+  // Send a friend request (pending status)
+  const sendFriendRequest = async (friendId: string) => {
     if (!user) return { error: new Error('Not authenticated') };
 
     const { error } = await supabase
@@ -81,16 +128,33 @@ export const useFriends = () => {
       .insert({
         user_id: user.id,
         friend_id: friendId,
-        status: 'accepted',
+        status: 'pending',
       });
 
     if (!error) {
-      // Also add reverse friendship
+      setSentRequests(prev => [...prev, friendId]);
+    }
+
+    return { error };
+  };
+
+  // Accept a friend request
+  const acceptFriendRequest = async (requestId: string, requesterId: string) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    // Update the request status to accepted
+    const { error } = await supabase
+      .from('friendships')
+      .update({ status: 'accepted' })
+      .eq('id', requestId);
+
+    if (!error) {
+      // Create reverse friendship (so both users see each other as friends)
       await supabase
         .from('friendships')
         .insert({
-          user_id: friendId,
-          friend_id: user.id,
+          user_id: user.id,
+          friend_id: requesterId,
           status: 'accepted',
         });
 
@@ -100,5 +164,60 @@ export const useFriends = () => {
     return { error };
   };
 
-  return { friends, topFriends, allUsers, loading, addFriend, searchUsers, refetch: fetchFriends };
+  // Decline a friend request
+  const declineFriendRequest = async (requestId: string) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    const { error } = await supabase
+      .from('friendships')
+      .delete()
+      .eq('id', requestId);
+
+    if (!error) {
+      setPendingRequests(prev => prev.filter(r => r.id !== requestId));
+    }
+
+    return { error };
+  };
+
+  // Cancel a sent friend request
+  const cancelFriendRequest = async (friendId: string) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    const { error } = await supabase
+      .from('friendships')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('friend_id', friendId)
+      .eq('status', 'pending');
+
+    if (!error) {
+      setSentRequests(prev => prev.filter(id => id !== friendId));
+    }
+
+    return { error };
+  };
+
+  // Check if we sent a request to this user
+  const hasSentRequest = (userId: string) => sentRequests.includes(userId);
+
+  // Check if this user is already a friend
+  const isFriend = (userId: string) => friends.some(f => f.user_id === userId);
+
+  return { 
+    friends, 
+    topFriends, 
+    pendingRequests,
+    sentRequests,
+    allUsers, 
+    loading, 
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest,
+    cancelFriendRequest,
+    hasSentRequest,
+    isFriend,
+    searchUsers, 
+    refetch: fetchFriends 
+  };
 };
