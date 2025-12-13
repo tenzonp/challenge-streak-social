@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import Header from '@/components/woup/Header';
 import BottomNav from '@/components/woup/BottomNav';
 import ChallengeCard from '@/components/woup/ChallengeCard';
@@ -38,7 +38,15 @@ import { Button } from '@/components/ui/button';
 type Tab = 'feed' | 'challenges' | 'profile';
 type FeedTab = 'friends' | 'global';
 
+interface LocationState {
+  openChatWith?: string;
+  activeTab?: Tab;
+  highlightChallenge?: string;
+  viewProfile?: string;
+}
+
 const Index = () => {
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
@@ -64,6 +72,36 @@ const Index = () => {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [videoCallWith, setVideoCallWith] = useState<Profile | null>(null);
   const [showVault, setShowVault] = useState(false);
+
+  // Handle navigation state from notifications
+  useEffect(() => {
+    const state = location.state as LocationState | null;
+    if (!state) return;
+
+    // Open chat with specific user
+    if (state.openChatWith) {
+      const chatFriend = [...friends, ...allUsers].find(f => f.user_id === state.openChatWith);
+      if (chatFriend) {
+        setChatWith(chatFriend);
+      }
+    }
+
+    // Switch to specific tab
+    if (state.activeTab) {
+      setActiveTab(state.activeTab);
+    }
+
+    // View a specific profile
+    if (state.viewProfile) {
+      const profileUser = [...friends, ...allUsers].find(f => f.user_id === state.viewProfile);
+      if (profileUser) {
+        setViewingProfile(profileUser);
+      }
+    }
+
+    // Clear state after handling
+    window.history.replaceState({}, document.title);
+  }, [location.state, friends, allUsers]);
 
   const unreadCount = conversations?.reduce((acc, c) => acc + c.unreadCount, 0) || 0;
 
