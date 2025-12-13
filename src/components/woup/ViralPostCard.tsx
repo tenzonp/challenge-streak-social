@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { toast } from 'sonner';
 import PostShareCard from './PostShareCard';
+import CommentsSection from './CommentsSection';
 
 interface ViralPostCardProps {
   post: ChallengeResponse;
@@ -27,6 +28,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
   );
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const hasViewed = useRef(false);
   const saved = isBookmarked(post.id);
@@ -230,7 +232,12 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
             <Heart className={cn("w-6 h-6", liked && "fill-current")} />
           </Button>
           
-          <Button variant="ghost" size="icon" className="rounded-full">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="rounded-full"
+            onClick={() => setShowComments(true)}
+          >
             <MessageCircle className="w-6 h-6" />
           </Button>
           
@@ -289,6 +296,16 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
           <PostShareCard 
             post={post}
             onClose={() => setShowShareModal(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Comments Modal */}
+      <AnimatePresence>
+        {showComments && (
+          <CommentsSection
+            responseId={post.id}
+            onClose={() => setShowComments(false)}
           />
         )}
       </AnimatePresence>

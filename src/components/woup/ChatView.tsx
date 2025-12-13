@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Lock, Sparkles, Check, CheckCheck, Eye, Play, Pause, Image as ImageIcon, Reply, Trash2, Flag, MoreVertical, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
@@ -303,36 +303,39 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     const msgs = await getMessages(friend.user_id);
     setMessages(msgs);
-  };
+  }, [friend.user_id, getMessages]);
 
+  // Fetch messages once on mount
   useEffect(() => {
     fetchMessages();
-  }, [friend.user_id]);
+  }, [fetchMessages]);
 
+  // Subscribe to realtime updates - only update on actual changes
   useEffect(() => {
     const channel = supabase
-      .channel(`chat-${friend.user_id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
-        const newMsg = payload.new as any;
-        if (payload.eventType === 'INSERT') {
-          if ((newMsg.sender_id === friend.user_id && newMsg.receiver_id === user?.id) ||
-              (newMsg.sender_id === user?.id && newMsg.receiver_id === friend.user_id)) {
-            fetchMessages();
-          }
-        } else if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-          fetchMessages();
-        }
+      .channel(`chat-${friend.user_id}-${user?.id}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'messages',
+        filter: `sender_id=eq.${friend.user_id}`
+      }, () => {
+        fetchMessages();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, () => {
+      .on('postgres_changes', { 
+        event: 'DELETE', 
+        schema: 'public', 
+        table: 'messages' 
+      }, () => {
         fetchMessages();
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [friend.user_id, user?.id]);
+  }, [friend.user_id, user?.id, fetchMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

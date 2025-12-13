@@ -38,88 +38,89 @@ const PostShareCard = ({ post, onClose }: PostShareCardProps) => {
       if (!ctx) return;
 
       // Postcard dimensions
-      canvas.width = 1080;
-      canvas.height = 1350;
-
-      // Background gradient
-      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      gradient.addColorStop(0, post.user?.color_primary || '#4ade80');
-      gradient.addColorStop(1, '#1a1a2e');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Load main photo
+      // Use original image dimensions for high quality
       const mainPhoto = await loadImage(post.back_photo_url);
       const selfiePhoto = await loadImage(post.front_photo_url);
+      
+      // Calculate canvas size based on main photo (max 1080 width, maintain aspect)
+      const maxWidth = 1080;
+      const aspectRatio = mainPhoto.height / mainPhoto.width;
+      canvas.width = Math.min(mainPhoto.width, maxWidth);
+      canvas.height = Math.round(canvas.width * aspectRatio) + 300; // Extra space for info
 
-      // Draw main photo with rounded corners effect
-      ctx.save();
-      roundedRect(ctx, 40, 40, canvas.width - 80, 900, 40);
-      ctx.clip();
-      ctx.drawImage(mainPhoto, 40, 40, canvas.width - 80, 900);
-      ctx.restore();
+      // Draw main photo at full quality (no compression)
+      ctx.drawImage(mainPhoto, 0, 0, canvas.width, canvas.height - 300);
 
-      // Draw selfie overlay
+      // Draw selfie overlay at original quality
+      const selfieWidth = Math.round(canvas.width * 0.18);
+      const selfieHeight = Math.round(selfieWidth * 1.33);
       ctx.save();
-      roundedRect(ctx, 60, 60, 180, 240, 20);
+      roundedRect(ctx, 20, 20, selfieWidth, selfieHeight, 16);
       ctx.clip();
-      ctx.drawImage(selfiePhoto, 60, 60, 180, 240);
+      ctx.drawImage(selfiePhoto, 20, 20, selfieWidth, selfieHeight);
       ctx.restore();
 
       // Border for selfie
       ctx.strokeStyle = post.user?.color_primary || '#4ade80';
       ctx.lineWidth = 4;
-      roundedRect(ctx, 60, 60, 180, 240, 20);
+      roundedRect(ctx, 20, 20, selfieWidth, selfieHeight, 16);
       ctx.stroke();
 
-      // User info section
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      roundedRect(ctx, 40, 960, canvas.width - 80, 350, 30);
-      ctx.fill();
+      // User info section at bottom
+      const infoY = canvas.height - 300;
+      const gradient = ctx.createLinearGradient(0, infoY, 0, canvas.height);
+      gradient.addColorStop(0, post.user?.color_primary || '#4ade80');
+      gradient.addColorStop(1, '#1a1a2e');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, infoY, canvas.width, 300);
 
       // Username
+      const fontSize = Math.round(canvas.width * 0.044);
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 48px system-ui';
-      ctx.fillText(post.user?.display_name || 'User', 80, 1030);
+      ctx.font = `bold ${fontSize}px system-ui`;
+      ctx.fillText(post.user?.display_name || 'User', 30, infoY + 60);
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.font = '32px system-ui';
-      ctx.fillText(`@${post.user?.username}`, 80, 1080);
+      ctx.font = `${Math.round(fontSize * 0.7)}px system-ui`;
+      ctx.fillText(`@${post.user?.username}`, 30, infoY + 100);
 
       // Caption
       if (post.caption) {
         ctx.fillStyle = '#ffffff';
-        ctx.font = '36px system-ui';
+        ctx.font = `${Math.round(fontSize * 0.8)}px system-ui`;
         const words = post.caption.split(' ');
         let line = '';
-        let y = 1150;
+        let y = infoY + 150;
+        const captionMaxWidth = canvas.width - 60;
         words.forEach(word => {
           const testLine = line + word + ' ';
-          if (ctx.measureText(testLine).width > canvas.width - 160) {
-            ctx.fillText(line, 80, y);
+          if (ctx.measureText(testLine).width > captionMaxWidth) {
+            ctx.fillText(line, 30, y);
             line = word + ' ';
-            y += 45;
+            y += Math.round(fontSize * 1.1);
           } else {
             line = testLine;
           }
         });
-        ctx.fillText(line, 80, y);
+        ctx.fillText(line, 30, y);
       }
 
       // Streak badge
       if (post.user?.streak && post.user.streak > 0) {
-        ctx.fillStyle = post.user?.color_primary || '#4ade80';
-        ctx.font = 'bold 32px system-ui';
-        ctx.fillText(`🔥 ${post.user.streak} day streak`, 80, 1250);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.round(fontSize * 0.7)}px system-ui`;
+        ctx.fillText(`🔥 ${post.user.streak} day streak`, 30, canvas.height - 40);
       }
 
       // Watermark
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '24px system-ui';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.font = `${Math.round(fontSize * 0.6)}px system-ui`;
       ctx.textAlign = 'right';
-      ctx.fillText('woup ✨', canvas.width - 60, 1300);
+      ctx.fillText('woup ✨', canvas.width - 30, canvas.height - 40);
+      ctx.textAlign = 'left';
 
-      const imageUrl = canvas.toDataURL('image/jpeg', 0.95);
+      // Export at maximum quality (PNG = no compression)
+      const imageUrl = canvas.toDataURL('image/png');
       setGeneratedImage(imageUrl);
     } catch (error) {
       console.error('Error generating postcard:', error);
