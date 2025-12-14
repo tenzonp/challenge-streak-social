@@ -86,6 +86,17 @@
     font-family: 'Outfit', sans-serif;
     overscroll-behavior: none;
     min-height: 100dvh;
+    /* Prevent pull-to-refresh on native */
+    overscroll-behavior-y: contain;
+  }
+
+  /* Keyboard visible state - adjust layout */
+  body.keyboard-visible {
+    --keyboard-offset: 1;
+  }
+
+  body.keyboard-visible .bottom-nav {
+    display: none;
   }
 
   /* Safe area padding for mobile */
@@ -105,6 +116,14 @@
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
+  .safe-left {
+    padding-left: env(safe-area-inset-left, 0);
+  }
+
+  .safe-right {
+    padding-right: env(safe-area-inset-right, 0);
+  }
+
   .safe-area-inset {
     padding-top: env(safe-area-inset-top, 0);
     padding-bottom: env(safe-area-inset-bottom, 0);
@@ -112,10 +131,21 @@
     padding-right: env(safe-area-inset-right, 0);
   }
 
+  /* Fixed bottom elements with safe area */
+  .fixed-bottom-safe {
+    bottom: env(safe-area-inset-bottom, 0);
+  }
+
   /* Prevent overflow on mobile screens */
   .overflow-safe {
     overflow-x: hidden;
     max-width: 100vw;
+  }
+
+  /* Native scrolling behavior */
+  .native-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-scrolling: touch;
   }
 }
 
