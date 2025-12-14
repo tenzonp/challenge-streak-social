@@ -22,9 +22,10 @@ interface ProfileCardProps {
   onShowVault: () => void;
   onShowFriends: () => void;
   onViewUserProfile?: (user: Profile) => void;
+  onViewPost?: (post: ChallengeResponse, user: Profile) => void;
 }
 
-const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFriends, onViewUserProfile }: ProfileCardProps) => {
+const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFriends, onViewUserProfile, onViewPost }: ProfileCardProps) => {
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
   const { getClaimedBadges, getNextMilestone } = useStreakRewards();
@@ -283,12 +284,19 @@ const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFr
           <p className="text-xs text-muted-foreground mb-3">posts</p>
           <div className="grid grid-cols-3 gap-2">
             {userResponses.slice(0, 6).map(response => (
-              <div key={response.id} className="aspect-square rounded-xl overflow-hidden">
+              <button 
+                key={response.id} 
+                className="aspect-square rounded-xl overflow-hidden relative group"
+                onClick={() => onViewPost?.(response, profile)}
+              >
                 <img 
                   src={response.back_photo_url} 
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform group-hover:scale-110"
                 />
-              </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                  <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-bold transition-opacity">View</span>
+                </div>
+              </button>
             ))}
             {userPosts.slice(0, 6 - userResponses.length).map(post => (
               post.image_url && (

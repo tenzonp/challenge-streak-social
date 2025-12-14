@@ -23,8 +23,10 @@ import OnboardingFlow from '@/components/woup/OnboardingFlow';
 import FriendsListModal from '@/components/woup/FriendsListModal';
 import FriendRequestsModal from '@/components/woup/FriendRequestsModal';
 import SuggestedFriends from '@/components/woup/SuggestedFriends';
+import PostDetailModal from '@/components/woup/PostDetailModal';
 import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
 import { DayStreakCounter } from '@/components/woup/StreakBadges';
+import { ChallengeResponse } from '@/hooks/useChallenges';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
 import { useChallenges, Challenge } from '@/hooks/useChallenges';
@@ -92,6 +94,7 @@ const Index = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showFriendsList, setShowFriendsList] = useState(false);
   const [showFriendRequests, setShowFriendRequests] = useState(false);
+  const [viewingPost, setViewingPost] = useState<{ post: ChallengeResponse; user: Profile } | null>(null);
 
   // Check if user needs onboarding
   useEffect(() => {
@@ -192,6 +195,10 @@ const Index = () => {
   const handleChallengeFromProfile = (userId: string) => {
     setViewingProfile(null);
     handleChallenge(userId);
+  };
+
+  const handleViewPost = (post: ChallengeResponse, user: Profile) => {
+    setViewingPost({ post, user });
   };
 
   return (
@@ -411,6 +418,7 @@ const Index = () => {
             onShowVault={() => setShowVault(true)}
             onShowFriends={() => setShowFriendsList(true)}
             onViewUserProfile={handleViewProfile}
+            onViewPost={handleViewPost}
           />
         )}
       </main>
@@ -443,6 +451,14 @@ const Index = () => {
       )}
       {newAchievement && <AchievementUnlockModal achievement={newAchievement} onClose={() => setNewAchievement(null)} />}
       {showVault && <BookmarksVault onClose={() => setShowVault(false)} />}
+      {viewingPost && (
+        <PostDetailModal 
+          post={viewingPost.post}
+          user={viewingPost.user}
+          onClose={() => setViewingPost(null)}
+          onViewProfile={handleViewProfile}
+        />
+      )}
       
       {/* Onboarding Flow */}
       <AnimatePresence>
