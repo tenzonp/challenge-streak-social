@@ -88,16 +88,20 @@ const SpinWheelModal = ({ onClose }: SpinWheelModalProps) => {
 
   const generateInviteLink = () => {
     if (!result || !profile) return '';
-    const baseUrl = 'https://play.google.com/store/apps/details?id=tulsi.beta.solvex';
-    const message = encodeURIComponent(`${profile.display_name} says: "${result.text}" 🎰✨ Join WOUP now!`);
-    return `${baseUrl}&referrer=${message}`;
+    const baseUrl = window.location.origin;
+    const params = new URLSearchParams({
+      from: profile.display_name,
+      msg: result.text,
+      emoji: result.emoji
+    });
+    return `${baseUrl}/invite?${params.toString()}`;
   };
 
   const handleShare = async () => {
     if (!result || !profile) return;
     
-    const shareText = `🎰 ${profile.display_name} spun the wheel for YOU! \n\n${result.emoji} ${result.text}\n\n✨ Get WOUP now and join the fun!\n\n`;
     const inviteLink = generateInviteLink();
+    const shareText = `🎰 ${profile.display_name} spun the wheel for YOU!\n\n${result.emoji} ${result.text}\n\n✨ Join WOUP now!\n`;
 
     if (navigator.share) {
       try {
@@ -119,10 +123,9 @@ const SpinWheelModal = ({ onClose }: SpinWheelModalProps) => {
   const handleCopyLink = async () => {
     if (!result || !profile) return;
     
-    const shareText = `🎰 ${profile.display_name} spun the wheel for YOU! \n\n${result.emoji} ${result.text}\n\n✨ Get WOUP now and join the fun!\n\n`;
     const inviteLink = generateInviteLink();
     
-    await navigator.clipboard.writeText(shareText + inviteLink);
+    await navigator.clipboard.writeText(inviteLink);
     toast({ title: 'Link copied to clipboard! 📋' });
   };
 
