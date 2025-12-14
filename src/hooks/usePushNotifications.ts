@@ -17,12 +17,13 @@ export const usePushNotifications = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const isNative = Capacitor.isNativePlatform();
+  const platform = Capacitor.getPlatform();
 
   // Check if push notifications are supported
   useEffect(() => {
     if (isNative) {
       setIsSupported(true);
-      console.log('[Push] Native platform detected, push supported');
+      console.log('[Push] Native platform detected:', platform);
     } else {
       const supported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
       console.log('[Push] Browser support check:', { 
@@ -37,29 +38,39 @@ export const usePushNotifications = () => {
         setPermission(Notification.permission);
       }
     }
-  }, [isNative]);
+  }, [isNative, platform]);
 
   // Check current subscription status
   const checkSubscription = useCallback(async () => {
     if (!user) return;
 
     try {
-      // Check database for any subscription
-      const { data } = await supabase
-        .from('push_subscriptions')
-        .select('id')
-        .eq('user_id', user.id)
-        .limit(1);
-
-      const hasSubscription = !!data && data.length > 0;
-      console.log('[Push] Subscription check:', hasSubscription ? 'exists' : 'none');
-      setIsSubscribed(hasSubscription);
-
-      // For native, also check permission status
       if (isNative) {
+        // Check FCM tokens table for native
+        const { data } = await supabase
+          .from('fcm_tokens')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+
+        const hasSubscription = !!data && data.length > 0;
+        console.log('[Push] FCM token check:', hasSubscription ? 'exists' : 'none');
+        setIsSubscribed(hasSubscription);
+
         const permResult = await PushNotifications.checkPermissions();
         setPermission(permResult.receive === 'granted' ? 'granted' : 
                      permResult.receive === 'denied' ? 'denied' : 'default');
+      } else {
+        // Check web push subscriptions
+        const { data } = await supabase
+          .from('push_subscriptions')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+
+        const hasSubscription = !!data && data.length > 0;
+        console.log('[Push] Web subscription check:', hasSubscription ? 'exists' : 'none');
+        setIsSubscribed(hasSubscription);
       }
     } catch (error) {
       console.error('[Push] Error checking subscription:', error);
@@ -75,49 +86,47 @@ export const usePushNotifications = () => {
     if (!isNative || !user) return;
 
     const setupListeners = async () => {
-      // Handle successful registration
+      // Handle successful registration - save FCM token
       await PushNotifications.addListener('registration', async (token: Token) => {
-        console.log('[Native Push] Registered with token:', token.value.substring(0, 20) + '...');
+        console.log('[FCM] Registered with token:', token.value.substring(0, 20) + '...');
         
         try {
-          // Store token in database with native endpoint format
-          const platform = Capacitor.getPlatform();
+          // Store FCM token in fcm_tokens table
           const { error } = await supabase
-            .from('push_subscriptions')
+            .from('fcm_tokens')
             .upsert({
               user_id: user.id,
-              endpoint: `native://${platform}/${token.value}`,
-              p256dh_key: token.value,
-              auth_key: platform,
+              token: token.value,
+              platform: platform as 'ios' | 'android',
             }, {
-              onConflict: 'user_id,endpoint'
+              onConflict: 'token'
             });
 
           if (error) {
-            console.error('[Native Push] Failed to save token:', error);
+            console.error('[FCM] Failed to save token:', error);
           } else {
-            console.log('[Native Push] Token saved to database');
+            console.log('[FCM] Token saved to database');
             setIsSubscribed(true);
           }
         } catch (error) {
-          console.error('[Native Push] Error saving token:', error);
+          console.error('[FCM] Error saving token:', error);
         }
       });
 
       // Handle registration errors
       await PushNotifications.addListener('registrationError', (error) => {
-        console.error('[Native Push] Registration error:', error);
+        console.error('[FCM] Registration error:', error);
         setPermission('denied');
       });
 
       // Handle incoming notifications when app is in foreground
       await PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
-        console.log('[Native Push] Notification received in foreground:', notification);
+        console.log('[FCM] Notification received in foreground:', notification);
       });
 
       // Handle notification tap
       await PushNotifications.addListener('pushNotificationActionPerformed', (action: ActionPerformed) => {
-        console.log('[Native Push] Notification tapped:', action);
+        console.log('[FCM] Notification tapped:', action);
         const data = action.notification.data;
         if (data?.url) {
           window.location.href = data.url;
@@ -130,7 +139,7 @@ export const usePushNotifications = () => {
     return () => {
       PushNotifications.removeAllListeners();
     };
-  }, [isNative, user]);
+  }, [isNative, user, platform]);
 
   // Web push service worker helper
   const waitForServiceWorker = async (): Promise<ServiceWorkerRegistration> => {
@@ -171,17 +180,17 @@ export const usePushNotifications = () => {
     if (!isSupported) return { error: 'Push notifications not supported' };
     
     setIsLoading(true);
-    console.log('[Push] Starting subscription process...', isNative ? 'Native' : 'Web');
+    console.log('[Push] Starting subscription process...', isNative ? `Native (${platform})` : 'Web');
 
     try {
       if (isNative) {
-        // Native push notifications
+        // Native push notifications via FCM
         const permResult = await PushNotifications.checkPermissions();
-        console.log('[Native Push] Current permission:', permResult.receive);
+        console.log('[FCM] Current permission:', permResult.receive);
         
         if (permResult.receive === 'prompt' || permResult.receive === 'prompt-with-rationale') {
           const requestResult = await PushNotifications.requestPermissions();
-          console.log('[Native Push] Permission request result:', requestResult.receive);
+          console.log('[FCM] Permission request result:', requestResult.receive);
           
           if (requestResult.receive !== 'granted') {
             setPermission('denied');
@@ -198,7 +207,7 @@ export const usePushNotifications = () => {
         
         // Register for push notifications - this triggers the 'registration' listener
         await PushNotifications.register();
-        console.log('[Native Push] Registration triggered');
+        console.log('[FCM] Registration triggered');
         
         setIsLoading(false);
         return { success: true };
@@ -301,17 +310,23 @@ export const usePushNotifications = () => {
     if (!user) return;
     
     setIsLoading(true);
-    console.log('[Push] Unsubscribing...', isNative ? 'Native' : 'Web');
+    console.log('[Push] Unsubscribing...', isNative ? `Native (${platform})` : 'Web');
 
     try {
-      // Remove all subscriptions for this user from database
-      await supabase
-        .from('push_subscriptions')
-        .delete()
-        .eq('user_id', user.id);
+      if (isNative) {
+        // Remove FCM tokens for native
+        await supabase
+          .from('fcm_tokens')
+          .delete()
+          .eq('user_id', user.id);
+      } else {
+        // Remove web push subscriptions
+        await supabase
+          .from('push_subscriptions')
+          .delete()
+          .eq('user_id', user.id);
 
-      if (!isNative) {
-        // For web, also unsubscribe from push manager
+        // Also unsubscribe from push manager
         const registration = await navigator.serviceWorker.ready;
         const subscription = await registration.pushManager.getSubscription();
         
