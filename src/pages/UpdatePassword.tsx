@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Lock, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Lock, CheckCircle, ArrowLeft } from 'lucide-react';
 
 const UpdatePassword = () => {
   const [password, setPassword] = useState('');
@@ -99,6 +99,17 @@ const UpdatePassword = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-secondary/10 flex items-center justify-center p-4">
+      {/* Back Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => navigate('/settings')}
+        className="absolute top-4 left-4 rounded-full"
+        type="button"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </Button>
+      
       <Card className="w-full max-w-md border-primary/20 bg-card/80 backdrop-blur-xl">
         <CardHeader className="text-center">
           <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">

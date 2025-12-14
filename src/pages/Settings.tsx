@@ -169,7 +169,13 @@ const SettingsPage = () => {
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b border-border/50">
         <div className="container mx-auto px-4 h-16 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate('/')} 
+            className="rounded-full"
+            type="button"
+          >
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex items-center gap-2">
