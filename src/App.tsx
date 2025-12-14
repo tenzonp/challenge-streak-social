@@ -24,10 +24,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          {/* Public route - no auth required */}
           <Route path="/invite" element={<Invite />} />
-          
-          {/* Auth-protected routes */}
           <Route path="/*" element={
             <AuthProvider>
               <Routes>
