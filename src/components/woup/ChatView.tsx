@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Music, Mic, Camera, X, Lock, Sparkles, Check, CheckCheck, Eye, EyeOff, Play, Pause, Image as ImageIcon, Reply, Trash2, Flag, MoreVertical, Smile, Search as SearchIcon, FileText, Film, Paperclip } from 'lucide-react';
+import { ArrowLeft, Send, Music, Mic, Camera, X, Lock, Sparkles, Check, CheckCheck, Eye, EyeOff, Play, Pause, Image as ImageIcon, Reply, Trash2, Flag, MoreVertical, Smile, Search as SearchIcon, FileText, Film, Paperclip, Download, ShieldOff, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { Message, MessageReaction, useMessages } from '@/hooks/useMessages';
@@ -287,18 +287,21 @@ const MediaMessage = ({
   message, 
   isMe,
   colorPrimary,
-  colorSecondary
+  colorSecondary,
+  onSave
 }: { 
   message: Message; 
   isMe: boolean;
   colorPrimary?: string;
   colorSecondary?: string;
+  onSave?: () => void;
 }) => {
   const [viewing, setViewing] = useState(false);
 
   const isImage = message.message_type === 'image';
   const isVideo = message.message_type === 'video';
   const isDocument = message.message_type === 'document';
+  const canSave = message.allow_save !== false;
 
   const getFileIcon = () => {
     if (isImage) return <ImageIcon className="w-6 h-6" />;
@@ -312,15 +315,41 @@ const MediaMessage = ({
     return parts[parts.length - 1].split('?')[0] || 'File';
   };
 
+  const handleSaveMedia = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!message.media_url || !canSave) return;
+    
+    try {
+      const response = await fetch(message.media_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = getFileName();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('Saved to device');
+    } catch {
+      toast.error('Failed to save');
+    }
+  };
+
   if (isImage && message.media_url) {
     return (
       <>
         <motion.div
           whileTap={{ scale: 0.98 }}
           onClick={() => setViewing(true)}
-          className="relative rounded-2xl overflow-hidden cursor-pointer max-w-[250px]"
+          className="relative rounded-2xl overflow-hidden cursor-pointer max-w-[250px] group"
         >
           <img src={message.media_url} alt="Image" className="w-full h-auto object-cover" />
+          {!isMe && !canSave && (
+            <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm">
+              <ShieldOff className="w-4 h-4 text-white" />
+            </div>
+          )}
         </motion.div>
         
         <AnimatePresence>
@@ -333,15 +362,34 @@ const MediaMessage = ({
               onClick={() => setViewing(false)}
             >
               <img src={message.media_url} alt="Image" className="max-w-full max-h-full object-contain" />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-4 left-4 text-white"
-                onClick={() => setViewing(false)}
-                type="button"
-              >
-                <X className="w-6 h-6" />
-              </Button>
+              <div className="absolute top-4 left-4 flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white bg-white/10"
+                  onClick={() => setViewing(false)}
+                  type="button"
+                >
+                  <X className="w-6 h-6" />
+                </Button>
+              </div>
+              {!isMe && canSave && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-4 right-4 text-white bg-white/10"
+                  onClick={handleSaveMedia}
+                  type="button"
+                >
+                  <Download className="w-6 h-6" />
+                </Button>
+              )}
+              {!isMe && !canSave && (
+                <div className="absolute top-4 right-4 flex items-center gap-2 text-white/70 text-sm">
+                  <ShieldOff className="w-4 h-4" />
+                  <span>Saving disabled</span>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -355,36 +403,57 @@ const MediaMessage = ({
         <video 
           src={message.media_url} 
           controls 
+          controlsList={canSave ? undefined : "nodownload"}
           className="w-full h-auto"
           preload="metadata"
         />
+        {!isMe && !canSave && (
+          <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm flex items-center gap-1">
+            <ShieldOff className="w-3 h-3 text-white" />
+            <span className="text-white text-xs">No save</span>
+          </div>
+        )}
+        {!isMe && canSave && (
+          <button
+            onClick={handleSaveMedia}
+            className="absolute top-2 right-2 p-2 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/70 transition-colors"
+          >
+            <Download className="w-4 h-4 text-white" />
+          </button>
+        )}
       </div>
     );
   }
 
   // Document
   return (
-    <a 
-      href={message.media_url || '#'} 
-      target="_blank" 
-      rel="noopener noreferrer"
-      className={cn(
-        "flex items-center gap-3 px-4 py-3 rounded-2xl min-w-[200px] hover:opacity-80 transition-opacity",
-        isMe ? "rounded-br-lg" : "rounded-bl-lg bg-muted/80"
-      )}
-      style={isMe ? { 
-        background: `linear-gradient(135deg, ${colorPrimary || 'hsl(var(--primary))'}, ${colorSecondary || 'hsl(var(--secondary))'})`,
-        color: 'white' 
-      } : undefined}
-    >
-      <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-        {getFileIcon()}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate">{message.content || getFileName()}</p>
-        <p className="text-xs opacity-70">Tap to open</p>
-      </div>
-    </a>
+    <div className="relative">
+      <a 
+        href={canSave ? (message.media_url || '#') : undefined}
+        target="_blank" 
+        rel="noopener noreferrer"
+        onClick={!canSave ? (e) => { e.preventDefault(); toast.info('Saving disabled by sender'); } : undefined}
+        className={cn(
+          "flex items-center gap-3 px-4 py-3 rounded-2xl min-w-[200px] hover:opacity-80 transition-opacity",
+          isMe ? "rounded-br-lg" : "rounded-bl-lg bg-muted/80"
+        )}
+        style={isMe ? { 
+          background: `linear-gradient(135deg, ${colorPrimary || 'hsl(var(--primary))'}, ${colorSecondary || 'hsl(var(--secondary))'})`,
+          color: 'white' 
+        } : undefined}
+      >
+        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+          {getFileIcon()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm truncate">{message.content || getFileName()}</p>
+          <p className="text-xs opacity-70">{canSave ? 'Tap to open' : 'View only'}</p>
+        </div>
+        {!isMe && !canSave && (
+          <ShieldOff className="w-4 h-4 opacity-50" />
+        )}
+      </a>
+    </div>
   );
 };
 
@@ -438,6 +507,7 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [allowSaveMedia, setAllowSaveMedia] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -681,7 +751,7 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
       const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(fileName);
       
       const emoji = type === 'image' ? '🖼️' : type === 'video' ? '🎬' : '📄';
-      await sendMessage(friend.user_id, `${emoji} ${file.name}`, type, urlData.publicUrl, undefined, replyTo?.id);
+      await sendMessage(friend.user_id, `${emoji} ${file.name}`, type, urlData.publicUrl, undefined, replyTo?.id, allowSaveMedia);
       setReplyTo(null);
     } catch {
       toast.error('Failed to send file');
@@ -1098,7 +1168,7 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
                       initial={{ opacity: 0, scale: 0.9, y: 10 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                      className="absolute bottom-full left-0 mb-2 p-2 rounded-2xl glass shadow-lg flex flex-col gap-1 min-w-[140px]"
+                      className="absolute bottom-full left-0 mb-2 p-2 rounded-2xl glass shadow-lg flex flex-col gap-1 min-w-[160px]"
                     >
                       <button
                         onClick={() => imageInputRef.current?.click()}
@@ -1121,6 +1191,26 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
                         <FileText className="w-4 h-4 text-neon-cyan" />
                         <span>Document</span>
                       </button>
+                      
+                      {/* Save toggle */}
+                      <div className="border-t border-border/30 mt-1 pt-1">
+                        <button
+                          onClick={() => setAllowSaveMedia(!allowSaveMedia)}
+                          className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-muted/50 transition-colors text-sm w-full"
+                        >
+                          {allowSaveMedia ? (
+                            <>
+                              <Shield className="w-4 h-4 text-primary" />
+                              <span className="flex-1 text-left">Save allowed</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldOff className="w-4 h-4 text-destructive" />
+                              <span className="flex-1 text-left">No save</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
