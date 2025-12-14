@@ -107,15 +107,6 @@ const SettingsPage = () => {
       title: 'Account',
       items: [
         {
-          icon: User,
-          label: 'Edit Profile',
-          description: 'Update your name, bio, and avatar',
-          onClick: () => navigate('/'),
-          badge: null,
-          color: 'text-primary',
-          bgColor: 'bg-primary/20',
-        },
-        {
           icon: Key,
           label: 'Change Password',
           description: 'Update your password',
