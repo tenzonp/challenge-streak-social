@@ -24,6 +24,7 @@ import FriendsListModal from '@/components/woup/FriendsListModal';
 import FriendRequestsModal from '@/components/woup/FriendRequestsModal';
 import SuggestedFriends from '@/components/woup/SuggestedFriends';
 import PostDetailModal from '@/components/woup/PostDetailModal';
+import AllPostsModal from '@/components/woup/AllPostsModal';
 import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
 import { DayStreakCounter } from '@/components/woup/StreakBadges';
 import { ChallengeResponse } from '@/hooks/useChallenges';
@@ -95,6 +96,7 @@ const Index = () => {
   const [showFriendsList, setShowFriendsList] = useState(false);
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [viewingPost, setViewingPost] = useState<{ post: ChallengeResponse; user: Profile } | null>(null);
+  const [showAllPosts, setShowAllPosts] = useState<Profile | null>(null);
 
   // Check if user needs onboarding
   useEffect(() => {
@@ -419,6 +421,7 @@ const Index = () => {
             onShowFriends={() => setShowFriendsList(true)}
             onViewUserProfile={handleViewProfile}
             onViewPost={handleViewPost}
+            onViewAllPosts={() => setShowAllPosts(profile)}
           />
         )}
       </main>
@@ -444,6 +447,14 @@ const Index = () => {
           onClose={() => setViewingProfile(null)} 
           onChat={handleChatFromProfile}
           onChallenge={handleChallengeFromProfile}
+          onViewPost={(post, user) => {
+            setViewingProfile(null);
+            setViewingPost({ post, user });
+          }}
+          onViewAllPosts={(user) => {
+            setViewingProfile(null);
+            setShowAllPosts(user);
+          }}
         />
       )}
       {showLeaderboard && (
@@ -457,6 +468,16 @@ const Index = () => {
           user={viewingPost.user}
           onClose={() => setViewingPost(null)}
           onViewProfile={handleViewProfile}
+        />
+      )}
+      {showAllPosts && (
+        <AllPostsModal
+          profile={showAllPosts}
+          onClose={() => setShowAllPosts(null)}
+          onViewPost={(post, user) => {
+            setShowAllPosts(null);
+            setViewingPost({ post, user });
+          }}
         />
       )}
       
