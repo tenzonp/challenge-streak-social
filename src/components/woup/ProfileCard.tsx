@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Edit2, LogOut, Trophy, ChevronRight, Lock, Bookmark, Users, UserX, Settings } from 'lucide-react';
+import { Flame, Edit2, LogOut, Trophy, ChevronRight, Lock, Bookmark, Users, UserX, Settings, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,6 +13,7 @@ import { useChallenges, ChallengeResponse } from '@/hooks/useChallenges';
 import SpotifyConnect from './SpotifyConnect';
 import { StreakBadges, DayStreakCounter } from './StreakBadges';
 import TopFriendsBadges from './TopFriendsBadges';
+import { toast } from 'sonner';
 
 interface ProfileCardProps {
   profile: Profile;
@@ -25,16 +26,27 @@ interface ProfileCardProps {
 
 const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFriends, onViewUserProfile }: ProfileCardProps) => {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { getClaimedBadges, getNextMilestone } = useStreakRewards();
   const { getUserPosts } = usePosts();
   const { bookmarks } = useBookmarks();
   const { friends, topFriends } = useFriends();
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [userResponses, setUserResponses] = useState<ChallengeResponse[]>([]);
+  const [copied, setCopied] = useState(false);
 
   const badges = getClaimedBadges();
   const nextMilestone = getNextMilestone(profile.streak);
+  const isOwner = user?.id === profile.user_id;
+
+  const copyUserCode = () => {
+    if (profile.user_code) {
+      navigator.clipboard.writeText(profile.user_code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success('User ID copied!');
+    }
+  };
 
   useEffect(() => {
     const fetchUserContent = async () => {
@@ -98,7 +110,27 @@ const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFr
       <DayStreakCounter streak={profile.streak} size="md" />
       <StreakBadges streak={profile.streak} longestStreak={profile.longest_streak} size="md" />
 
-      {/* Top Friends */}
+      {/* User ID - Only visible to owner */}
+      {isOwner && profile.user_code && (
+        <div className="glass rounded-2xl p-4">
+          <p className="text-xs text-muted-foreground mb-2">your user id</p>
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-mono font-bold tracking-widest" style={{ color: profile.color_primary || 'hsl(var(--primary))' }}>
+              {profile.user_code}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={copyUserCode}
+              className="rounded-xl"
+            >
+              {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+              <span className="ml-2 text-xs">{copied ? 'Copied!' : 'Copy'}</span>
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">use this to login on any device</p>
+        </div>
+      )}
       <TopFriendsBadges topFriends={topFriends} onViewProfile={onViewUserProfile} />
 
       {/* Friends Count - Clickable */}
