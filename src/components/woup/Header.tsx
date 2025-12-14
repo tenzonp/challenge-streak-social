@@ -18,32 +18,30 @@ const Header = ({ onProfileClick, pendingCount, unreadMessages = 0, friendReques
   const navigate = useNavigate();
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 glass-strong border-b border-border/30">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+    <header className="fixed top-0 left-0 right-0 z-50 glass-strong border-b border-border/30 pt-safe">
+      <div className="container mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between">
         <motion.h1 
-          className="text-2xl font-black text-gradient-primary tracking-tight"
+          className="text-xl sm:text-2xl font-black text-gradient-primary tracking-tight"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
           woup
         </motion.h1>
         
-        <div className="flex items-center gap-2">
-          {/* Streak Counter with Dopamine Animation */}
+        <div className="flex items-center gap-1 sm:gap-2">
+          {/* Streak Counter */}
           <motion.div 
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-neon-orange/20 to-neon-yellow/20 border border-neon-orange/30 cursor-pointer"
-            whileHover={{ scale: 1.05 }}
+            className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-gradient-to-r from-neon-orange/20 to-neon-yellow/20 border border-neon-orange/30"
             whileTap={{ scale: 0.95 }}
           >
             <motion.span 
-              className="text-lg"
-              animate={{ scale: [1, 1.3, 1], rotate: [0, 10, -10, 0] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
+              className="text-sm sm:text-lg"
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 2 }}
             >
               🔥
             </motion.span>
-            <span className="font-black text-neon-orange">{profile?.streak || 0}</span>
-            <span className="text-xs text-muted-foreground font-medium">day{(profile?.streak || 0) !== 1 ? 's' : ''}</span>
+            <span className="font-black text-sm sm:text-base text-neon-orange">{profile?.streak || 0}</span>
           </motion.div>
           
           {/* Friend Requests */}
