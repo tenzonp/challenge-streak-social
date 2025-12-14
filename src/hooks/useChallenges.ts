@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/hooks/useProfile';
+import { notifyNewChallenge, notifyChallengeCompleted } from '@/utils/pushNotifications';
 
 export interface Challenge {
   id: string;
@@ -98,6 +99,13 @@ export const useChallenges = () => {
 
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
+    // Get sender's profile for notification
+    const { data: senderProfile } = await supabase
+      .from('profiles')
+      .select('display_name, username')
+      .eq('user_id', user.id)
+      .single();
+
     const { error } = await supabase
       .from('challenges')
       .insert({
@@ -106,6 +114,11 @@ export const useChallenges = () => {
         challenge_text: challengeText,
         expires_at: expiresAt.toISOString(),
       });
+
+    if (!error) {
+      const senderName = senderProfile?.display_name || senderProfile?.username || 'Someone';
+      notifyNewChallenge(toUserId, senderName, challengeText);
+    }
 
     return { error };
   };
@@ -140,25 +153,14 @@ export const useChallenges = () => {
       
       // Send notification to challenge sender
       if (challengeData?.from_user_id) {
-        try {
-          // Get current user's profile for display name
-          const { data: currentUserProfile } = await supabase
-            .from('profiles')
-            .select('display_name')
-            .eq('user_id', user.id)
-            .single();
-          
-          await supabase.functions.invoke('send-notification', {
-            body: {
-              userId: challengeData.from_user_id,
-              title: 'Challenge Completed! 🎉',
-              body: `${currentUserProfile?.display_name || 'Someone'} completed your challenge: "${challengeData.challenge_text}"`,
-              type: 'challenge_complete'
-            }
-          });
-        } catch (err) {
-          console.log('Failed to send completion notification:', err);
-        }
+        const { data: currentUserProfile } = await supabase
+          .from('profiles')
+          .select('display_name, username')
+          .eq('user_id', user.id)
+          .single();
+        
+        const completerName = currentUserProfile?.display_name || currentUserProfile?.username || 'Someone';
+        notifyChallengeCompleted(challengeData.from_user_id, completerName);
       }
     }
 
