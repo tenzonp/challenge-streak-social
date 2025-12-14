@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import UpdatePassword from "./pages/UpdatePassword";
 import NotificationSettings from "./pages/NotificationSettings";
 import NotificationAdmin from "./pages/NotificationAdmin";
+import BlockedUsers from "./pages/BlockedUsers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/notifications" element={<NotificationSettings />} />
             <Route path="/admin/notifications" element={<NotificationAdmin />} />
+            <Route path="/settings/blocked" element={<BlockedUsers />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Flame, Edit2, LogOut, Trophy, ChevronRight, Lock, Bookmark, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Flame, Edit2, LogOut, Trophy, ChevronRight, Lock, Bookmark, Users, UserX, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,6 +24,7 @@ interface ProfileCardProps {
 }
 
 const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFriends, onViewUserProfile }: ProfileCardProps) => {
+  const navigate = useNavigate();
   const { signOut } = useAuth();
   const { getClaimedBadges, getNextMilestone } = useStreakRewards();
   const { getUserPosts } = usePosts();
@@ -170,7 +172,27 @@ const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFr
         </div>
       </button>
 
-      {/* Streak & Badges - Clickable for leaderboard */}
+      {/* Blocked Users */}
+      <button 
+        onClick={() => navigate('/settings/blocked')}
+        className="w-full glass rounded-2xl p-4 text-left hover:bg-muted/20 transition-colors"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-12 h-12 rounded-2xl flex items-center justify-center bg-destructive/20"
+            >
+              <UserX className="w-5 h-5 text-destructive" />
+            </div>
+            <div>
+              <p className="font-semibold">Blocked Users</p>
+              <p className="text-sm text-muted-foreground">Manage blocked accounts</p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </div>
+      </button>
+
       <button 
         onClick={onShowLeaderboard}
         className="w-full glass rounded-2xl p-4 text-left hover:bg-muted/20 transition-colors"
