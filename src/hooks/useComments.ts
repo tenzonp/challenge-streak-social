@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { notifyNewComment, notifyCommentReply } from '@/utils/pushNotifications';
 
 export interface Comment {
   id: string;
@@ -147,6 +148,30 @@ export const useComments = (responseId: string) => {
       .select('display_name, username, avatar_url, color_primary')
       .eq('user_id', user.id)
       .single();
+
+    // Send push notification to post owner (or parent comment owner for replies)
+    const commenterName = userData?.display_name || userData?.username || 'Someone';
+    
+    if (parentId) {
+      // Find parent comment owner
+      const parentComment = comments.find(c => c.id === parentId) || 
+        comments.flatMap(c => c.replies || []).find(r => r.id === parentId);
+      
+      if (parentComment && parentComment.user_id !== user.id) {
+        notifyCommentReply(parentComment.user_id, commenterName, responseId, content);
+      }
+    } else {
+      // Notify post owner
+      const { data: postData } = await supabase
+        .from('challenge_responses')
+        .select('user_id')
+        .eq('id', responseId)
+        .single();
+      
+      if (postData && postData.user_id !== user.id) {
+        notifyNewComment(postData.user_id, commenterName, responseId, content);
+      }
+    }
 
     // Update local state
     const newComment: Comment = {

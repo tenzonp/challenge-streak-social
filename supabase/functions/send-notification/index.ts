@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface NotificationPayload {
   user_id: string;
-  type: 'challenge' | 'message' | 'streak' | 'friend_request' | 'competition' | 'achievement';
+  type: 'challenge' | 'message' | 'streak' | 'friend_request' | 'competition' | 'achievement' | 'like' | 'comment' | 'reaction';
   title: string;
   body: string;
   data?: Record<string, any>;
@@ -89,6 +89,9 @@ serve(async (req) => {
       friend_request: 'friend_requests_enabled',
       competition: 'competition_updates_enabled',
       achievement: 'achievement_unlocks_enabled',
+      like: 'challenges_enabled', // Uses challenges preference for social interactions
+      comment: 'challenges_enabled',
+      reaction: 'challenges_enabled',
     };
 
     const prefKey = prefMap[type];

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/hooks/useProfile';
+import { notifyFriendRequest, notifyFriendAccepted } from '@/utils/pushNotifications';
 
 export interface FriendWithStatus extends Profile {
   is_top_friend?: boolean;
@@ -15,17 +16,6 @@ export interface FriendRequest {
   created_at: string;
   requester: Profile;
 }
-
-// Helper to send push notification
-const sendPushNotification = async (userId: string, type: string, title: string, body: string, data?: Record<string, any>) => {
-  try {
-    await supabase.functions.invoke('send-notification', {
-      body: { user_id: userId, type, title, body, data }
-    });
-  } catch (error) {
-    console.error('Failed to send notification:', error);
-  }
-};
 
 export const useFriends = () => {
   const { user } = useAuth();
@@ -154,13 +144,7 @@ export const useFriends = () => {
       
       // Send push notification to recipient
       const senderName = senderProfile?.display_name || senderProfile?.username || 'Someone';
-      sendPushNotification(
-        friendId,
-        'friend_request',
-        'new friend request! 🤝',
-        `${senderName} wants to be your friend`,
-        { senderId: user.id }
-      );
+      notifyFriendRequest(friendId, senderName);
     }
 
     return { error };
@@ -195,13 +179,7 @@ export const useFriends = () => {
 
       // Send push notification to the requester
       const acceptorName = acceptorProfile?.display_name || acceptorProfile?.username || 'Someone';
-      sendPushNotification(
-        requesterId,
-        'friend_request',
-        'friend request accepted! 🎉',
-        `${acceptorName} is now your friend`,
-        { acceptorId: user.id }
-      );
+      notifyFriendAccepted(requesterId, acceptorName);
 
       fetchFriends();
     }

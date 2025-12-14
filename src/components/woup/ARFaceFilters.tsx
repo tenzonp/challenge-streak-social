@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Camera, RotateCcw, Sparkles, Send, Sticker, Type, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Capacitor } from '@capacitor/core';
+import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 interface ARFaceFiltersProps {
   onCapture: (imageUrl: string) => void;
@@ -48,6 +50,8 @@ interface PlacedSticker {
   scale: number;
 }
 
+const isNative = Capacitor.isNativePlatform();
+
 const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -62,6 +66,12 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const startCamera = useCallback(async (mode: 'user' | 'environment') => {
+    // On native, we'll use Capacitor Camera plugin directly for capture
+    if (isNative) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -100,7 +110,9 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
   const switchCamera = async () => {
     const newMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newMode);
-    await startCamera(newMode);
+    if (!isNative) {
+      await startCamera(newMode);
+    }
   };
 
   const addSticker = (emoji: string) => {
@@ -114,7 +126,27 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
     }]);
   };
 
-  const capturePhoto = () => {
+  // Native camera capture using Capacitor
+  const captureNativePhoto = async () => {
+    try {
+      const photo = await CapCamera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        direction: facingMode === 'user' ? 'front' as any : 'rear' as any,
+      });
+      
+      if (photo.dataUrl) {
+        setCapturedImage(photo.dataUrl);
+      }
+    } catch (error) {
+      console.error('Native camera error:', error);
+    }
+  };
+
+  // Web camera capture
+  const captureWebPhoto = () => {
     if (!videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
@@ -136,6 +168,14 @@ const ARFaceFilters = ({ onCapture, onClose }: ARFaceFiltersProps) => {
     
     const imageUrl = canvas.toDataURL('image/jpeg', 0.9);
     setCapturedImage(imageUrl);
+  };
+
+  const capturePhoto = () => {
+    if (isNative) {
+      captureNativePhoto();
+    } else {
+      captureWebPhoto();
+    }
   };
 
   const handleSend = () => {

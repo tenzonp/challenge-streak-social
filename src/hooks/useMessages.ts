@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/hooks/useProfile';
+import { notifyNewMessage } from '@/utils/pushNotifications';
 
 export type MessageType = 'text' | 'snap' | 'voice' | 'image' | 'video' | 'document';
 export type MessageStatus = 'sent' | 'delivered' | 'read';
@@ -145,7 +146,25 @@ export const useMessages = () => {
         allow_save: allowSave,
       });
 
-    if (!error) { fetchConversations(); }
+    if (!error) { 
+      fetchConversations();
+      
+      // Send push notification to receiver
+      const { data: senderProfile } = await supabase
+        .from('profiles')
+        .select('display_name, username')
+        .eq('user_id', user.id)
+        .single();
+      
+      const senderName = senderProfile?.display_name || senderProfile?.username || 'Someone';
+      const messagePreview = messageType === 'text' ? content : 
+        messageType === 'snap' ? '📸 Sent a snap' :
+        messageType === 'voice' ? '🎵 Voice message' :
+        messageType === 'image' ? '🖼️ Image' :
+        messageType === 'video' ? '🎬 Video' : '📄 File';
+      
+      notifyNewMessage(receiverId, senderName, messagePreview);
+    }
     return { error };
   };
 
