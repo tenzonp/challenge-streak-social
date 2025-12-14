@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, X, Loader2 } from 'lucide-react';
+import { PhoneOff, Mic, MicOff, Video, VideoOff, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useVideoCall } from '@/hooks/useVideoCall';
@@ -22,15 +22,15 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
     endCall,
     toggleMute,
     toggleVideo
-  } = useVideoCall(onClose);
+  } = useVideoCall(friend.user_id, onClose);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    // Auto-start call
+    // Auto-start call when modal opens
     startCall();
-  }, []);
+  }, [startCall]);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -46,7 +46,6 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
 
   const handleEndCall = () => {
     endCall();
-    onClose();
   };
 
   return (
@@ -60,14 +59,20 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
         {/* Header */}
         <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-background to-transparent safe-top">
           <div className="flex items-center justify-between">
-            <button onClick={handleEndCall} className="p-2 rounded-full glass">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleEndCall} 
+              className="rounded-full glass"
+              type="button"
+            >
               <X className="w-5 h-5" />
-            </button>
+            </Button>
             
             <div className="text-center">
               <p className="font-semibold">{friend.display_name}</p>
               <p className="text-xs text-muted-foreground">
-                {isCalling ? 'Calling...' : isInCall ? 'Connected' : 'Video Call'}
+                {isCalling ? 'Calling...' : isInCall ? 'Connected' : 'Connecting...'}
               </p>
             </div>
             
@@ -103,6 +108,13 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
                 </div>
               )}
               
+              {!isCalling && !isInCall && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Connecting...</span>
+                </div>
+              )}
+              
               {isInCall && !remoteStream && (
                 <p className="text-muted-foreground">Waiting for video...</p>
               )}
@@ -110,21 +122,26 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
           )}
 
           {/* Local video (picture-in-picture) */}
-          <div className="absolute bottom-24 right-4 w-28 h-40 rounded-2xl overflow-hidden border-2 border-border shadow-xl">
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="absolute bottom-24 right-4 w-28 h-40 rounded-2xl overflow-hidden border-2 border-border shadow-xl"
+          >
             {localStream && !isVideoOff ? (
               <video
                 ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover mirror"
+                className="w-full h-full object-cover"
+                style={{ transform: 'scaleX(-1)' }}
               />
             ) : (
               <div className="w-full h-full bg-muted flex items-center justify-center">
                 <VideoOff className="w-8 h-8 text-muted-foreground" />
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
 
         {/* Controls */}
@@ -135,6 +152,7 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
               size="lg"
               className="w-14 h-14 rounded-full"
               onClick={toggleMute}
+              type="button"
             >
               {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
             </Button>
@@ -144,6 +162,7 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
               size="lg"
               className="w-16 h-16 rounded-full"
               onClick={handleEndCall}
+              type="button"
             >
               <PhoneOff className="w-7 h-7" />
             </Button>
@@ -153,6 +172,7 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
               size="lg"
               className="w-14 h-14 rounded-full"
               onClick={toggleVideo}
+              type="button"
             >
               {isVideoOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
             </Button>
