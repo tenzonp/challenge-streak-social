@@ -43,7 +43,7 @@ const PrivacySettingsPage = () => {
       .from('privacy_settings')
       .select('*')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setSettings({
@@ -52,9 +52,15 @@ const PrivacySettingsPage = () => {
         show_streak_publicly: data.show_streak_publicly,
         show_spotify_publicly: data.show_spotify_publicly,
       });
-    } else if (error?.code === 'PGRST116') {
+    } else if (!error) {
       // No settings exist, create default
-      await supabase.from('privacy_settings').insert({ user_id: user.id });
+      const { error: insertError } = await supabase
+        .from('privacy_settings')
+        .insert({ user_id: user.id });
+      
+      if (insertError) {
+        console.error('Error creating privacy settings:', insertError);
+      }
     }
     setLoading(false);
   };
@@ -62,19 +68,39 @@ const PrivacySettingsPage = () => {
   const updateSetting = async <K extends keyof PrivacySettings>(key: K, value: PrivacySettings[K]) => {
     if (!user) return;
     
+    const previousSettings = { ...settings };
     setSaving(true);
     setSettings(prev => ({ ...prev, [key]: value }));
 
-    const { error } = await supabase
+    // First check if record exists
+    const { data: existing } = await supabase
       .from('privacy_settings')
-      .upsert({ user_id: user.id, [key]: value });
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    let error;
+    if (existing) {
+      // Update existing record
+      const result = await supabase
+        .from('privacy_settings')
+        .update({ [key]: value, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+      error = result.error;
+    } else {
+      // Insert new record with the setting
+      const result = await supabase
+        .from('privacy_settings')
+        .insert({ user_id: user.id, [key]: value });
+      error = result.error;
+    }
 
     if (error) {
-      toast({ title: 'Failed to save', variant: 'destructive' });
-      // Revert
-      fetchSettings();
+      console.error('Error saving privacy setting:', error);
+      toast({ title: 'Failed to save', description: error.message, variant: 'destructive' });
+      setSettings(previousSettings);
     } else {
-      toast({ title: 'Settings updated' });
+      toast({ title: 'Saved' });
     }
     setSaving(false);
   };
