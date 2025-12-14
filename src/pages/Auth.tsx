@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Loader2, Sparkles, Zap, Flame, Trophy, Phone, Mail } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Sparkles, Zap, Flame, Trophy, Phone, Mail, ArrowLeft, KeyRound } from 'lucide-react';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
@@ -20,7 +20,12 @@ const phoneAuthSchema = z.object({
   otp: z.string().length(6, 'OTP must be 6 digits').optional(),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email('invalid email address').max(255),
+});
+
 type AuthMethod = 'email' | 'phone';
+type AuthView = 'main' | 'forgot-password' | 'reset-sent' | 'verification-sent';
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -31,7 +36,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [authMethod, setAuthMethod] = useState<AuthMethod>('email');
-  const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+  const [authView, setAuthView] = useState<AuthView>('main');
   
   // Email auth state
   const [email, setEmail] = useState('');
@@ -45,6 +50,45 @@ const Auth = () => {
   const [otpSent, setOtpSent] = useState(false);
   
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const handleForgotPassword = async () => {
+    setErrors({});
+    const validation = forgotPasswordSchema.safeParse({ email });
+    
+    if (!validation.success) {
+      const fieldErrors: Record<string, string> = {};
+      validation.error.errors.forEach(err => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as string] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth?type=recovery`,
+      });
+      
+      if (error) {
+        toast({
+          title: "failed to send reset email",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        setAuthView('reset-sent');
+        toast({
+          title: "check your email! 📧",
+          description: "we sent you a password reset link",
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSendOtp = async () => {
     setErrors({});
@@ -185,7 +229,7 @@ const Auth = () => {
             });
           }
         } else {
-          setShowVerificationMessage(true);
+          setAuthView('verification-sent');
           toast({
             title: "check your email! 📧",
             description: "we sent you a verification link",
@@ -197,7 +241,8 @@ const Auth = () => {
     }
   };
 
-  if (showVerificationMessage) {
+  // Email verification sent view
+  if (authView === 'verification-sent') {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -236,13 +281,141 @@ const Auth = () => {
           <Button
             variant="outline"
             onClick={() => {
-              setShowVerificationMessage(false);
+              setAuthView('main');
               setIsLogin(true);
             }}
             className="w-full"
           >
             back to login
           </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Password reset email sent view
+  if (authView === 'reset-sent') {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <motion.div 
+            className="absolute top-20 left-10 w-32 h-32 rounded-full bg-neon-pink/20 blur-3xl"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+            transition={{ duration: 4, repeat: Infinity }}
+          />
+          <motion.div 
+            className="absolute bottom-32 right-10 w-40 h-40 rounded-full bg-neon-cyan/20 blur-3xl"
+            animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.6, 0.4] }}
+            transition={{ duration: 5, repeat: Infinity }}
+          />
+        </div>
+
+        <motion.div 
+          className="w-full max-w-sm glass-strong rounded-4xl p-8 text-center relative z-10"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            <KeyRound className="w-16 h-16 mx-auto text-primary mb-4" />
+          </motion.div>
+          
+          <h2 className="text-2xl font-bold mb-2">check your email! 📧</h2>
+          <p className="text-muted-foreground mb-6">
+            we sent a password reset link to <span className="text-primary font-medium">{email}</span>
+          </p>
+          <p className="text-sm text-muted-foreground mb-6">
+            click the link in the email to reset your password
+          </p>
+          
+          <Button
+            variant="outline"
+            onClick={() => {
+              setAuthView('main');
+              setIsLogin(true);
+            }}
+            className="w-full"
+          >
+            back to login
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Forgot password view
+  if (authView === 'forgot-password') {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <motion.div 
+            className="absolute top-20 left-10 w-32 h-32 rounded-full bg-neon-pink/20 blur-3xl"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+            transition={{ duration: 4, repeat: Infinity }}
+          />
+          <motion.div 
+            className="absolute bottom-32 right-10 w-40 h-40 rounded-full bg-neon-cyan/20 blur-3xl"
+            animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.6, 0.4] }}
+            transition={{ duration: 5, repeat: Infinity }}
+          />
+          <motion.div 
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-neon-green/10 blur-3xl"
+            animate={{ scale: [1, 1.3, 1], rotate: [0, 180, 360] }}
+            transition={{ duration: 8, repeat: Infinity }}
+          />
+        </div>
+
+        <motion.div 
+          className="w-full max-w-sm glass-strong rounded-4xl p-6 relative z-10"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <button
+            onClick={() => setAuthView('main')}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm">back</span>
+          </button>
+
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <KeyRound className="w-5 h-5 text-primary" />
+            <h2 className="text-xl font-bold">forgot password?</h2>
+          </div>
+
+          <p className="text-muted-foreground text-sm text-center mb-6">
+            no worries! enter your email and we'll send you a reset link
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <input
+                type="email"
+                placeholder="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
+                maxLength={255}
+              />
+              {errors.email && <p className="text-destructive text-xs mt-1">{errors.email}</p>}
+            </div>
+
+            <Button 
+              type="button"
+              variant="neon" 
+              className="w-full h-12 text-base font-bold"
+              disabled={loading}
+              onClick={handleForgotPassword}
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                'send reset link 📧'
+              )}
+            </Button>
+          </div>
         </motion.div>
       </div>
     );
@@ -415,6 +588,16 @@ const Auth = () => {
               {errors.password && <p className="text-destructive text-xs mt-1">{errors.password}</p>}
             </div>
 
+            {isLogin && (
+              <button
+                type="button"
+                onClick={() => setAuthView('forgot-password')}
+                className="text-primary text-sm hover:underline w-full text-right"
+              >
+                forgot password?
+              </button>
+            )}
+
             <Button 
               type="submit" 
               variant="neon" 
@@ -433,7 +616,7 @@ const Auth = () => {
             <div>
               <input
                 type="tel"
-                placeholder="phone number (with country code, e.g. +1234567890)"
+                placeholder="phone (with country code, e.g. +1234567890)"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/[^0-9+]/g, ''))}
                 className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
