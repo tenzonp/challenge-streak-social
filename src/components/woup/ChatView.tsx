@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Lock, Sparkles, Check, CheckCheck, Eye, EyeOff, Play, Pause, Image as ImageIcon, Reply, Trash2, Flag, MoreVertical, Smile, Search as SearchIcon } from 'lucide-react';
+import { ArrowLeft, Send, Music, Mic, Camera, X, Lock, Sparkles, Check, CheckCheck, Eye, EyeOff, Play, Pause, Image as ImageIcon, Reply, Trash2, Flag, MoreVertical, Smile, Search as SearchIcon, FileText, Film, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { Message, MessageReaction, useMessages } from '@/hooks/useMessages';
@@ -36,7 +36,6 @@ interface ChatViewProps {
   friend: Profile;
   onBack: () => void;
   onViewProfile: (user: Profile) => void;
-  onVideoCall?: (friend: Profile) => void;
 }
 
 const REACTION_EMOJIS = ['❤️', '😂', '😮', '😢', '🔥', '👍'];
@@ -283,6 +282,112 @@ const VoiceMessage = ({
   );
 };
 
+// Media message component for images/videos/documents
+const MediaMessage = ({ 
+  message, 
+  isMe,
+  colorPrimary,
+  colorSecondary
+}: { 
+  message: Message; 
+  isMe: boolean;
+  colorPrimary?: string;
+  colorSecondary?: string;
+}) => {
+  const [viewing, setViewing] = useState(false);
+
+  const isImage = message.message_type === 'image';
+  const isVideo = message.message_type === 'video';
+  const isDocument = message.message_type === 'document';
+
+  const getFileIcon = () => {
+    if (isImage) return <ImageIcon className="w-6 h-6" />;
+    if (isVideo) return <Film className="w-6 h-6" />;
+    return <FileText className="w-6 h-6" />;
+  };
+
+  const getFileName = () => {
+    if (!message.media_url) return 'File';
+    const parts = message.media_url.split('/');
+    return parts[parts.length - 1].split('?')[0] || 'File';
+  };
+
+  if (isImage && message.media_url) {
+    return (
+      <>
+        <motion.div
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setViewing(true)}
+          className="relative rounded-2xl overflow-hidden cursor-pointer max-w-[250px]"
+        >
+          <img src={message.media_url} alt="Image" className="w-full h-auto object-cover" />
+        </motion.div>
+        
+        <AnimatePresence>
+          {viewing && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+              onClick={() => setViewing(false)}
+            >
+              <img src={message.media_url} alt="Image" className="max-w-full max-h-full object-contain" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-4 left-4 text-white"
+                onClick={() => setViewing(false)}
+                type="button"
+              >
+                <X className="w-6 h-6" />
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>
+    );
+  }
+
+  if (isVideo && message.media_url) {
+    return (
+      <div className="relative rounded-2xl overflow-hidden max-w-[280px]">
+        <video 
+          src={message.media_url} 
+          controls 
+          className="w-full h-auto"
+          preload="metadata"
+        />
+      </div>
+    );
+  }
+
+  // Document
+  return (
+    <a 
+      href={message.media_url || '#'} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className={cn(
+        "flex items-center gap-3 px-4 py-3 rounded-2xl min-w-[200px] hover:opacity-80 transition-opacity",
+        isMe ? "rounded-br-lg" : "rounded-bl-lg bg-muted/80"
+      )}
+      style={isMe ? { 
+        background: `linear-gradient(135deg, ${colorPrimary || 'hsl(var(--primary))'}, ${colorSecondary || 'hsl(var(--secondary))'})`,
+        color: 'white' 
+      } : undefined}
+    >
+      <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+        {getFileIcon()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{message.content || getFileName()}</p>
+        <p className="text-xs opacity-70">Tap to open</p>
+      </div>
+    </a>
+  );
+};
+
 // Reaction picker popup
 const ReactionPicker = ({ 
   onSelect, 
@@ -312,7 +417,7 @@ const ReactionPicker = ({
   );
 };
 
-const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps) => {
+const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
   const { user } = useAuth();
   const { sendMessage, getMessages, searchMessages, markSnapAsViewed, decrementSnapViews, deleteMessage, deleteAllChat, reportMessage, addReaction, removeReaction } = useMessages();
   const { isRecording, duration, startRecording, stopRecording, cancelRecording, uploadAudio, formatDuration } = useAudioRecorder();
@@ -332,9 +437,13 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMessages = useCallback(async () => {
     const msgs = await getMessages(friend.user_id);
@@ -545,6 +654,42 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
     setShowReactionPicker(null);
   };
 
+  const handleFileUpload = async (file: File, type: 'image' | 'video' | 'document') => {
+    if (!user) return;
+    
+    const maxSize = type === 'video' ? 50 * 1024 * 1024 : 10 * 1024 * 1024; // 50MB for video, 10MB for others
+    if (file.size > maxSize) {
+      toast.error(`File too large. Max ${type === 'video' ? '50MB' : '10MB'}`);
+      return;
+    }
+
+    setSending(true);
+    try {
+      const ext = file.name.split('.').pop() || 'file';
+      const fileName = `${type}s/${user.id}/${Date.now()}.${ext}`;
+      
+      const { error } = await supabase.storage
+        .from('chat-media')
+        .upload(fileName, file, { contentType: file.type });
+
+      if (error) {
+        toast.error('Failed to upload file');
+        setSending(false);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(fileName);
+      
+      const emoji = type === 'image' ? '🖼️' : type === 'video' ? '🎬' : '📄';
+      await sendMessage(friend.user_id, `${emoji} ${file.name}`, type, urlData.publicUrl, undefined, replyTo?.id);
+      setReplyTo(null);
+    } catch {
+      toast.error('Failed to send file');
+    }
+    setSending(false);
+    setShowAttachMenu(false);
+  };
+
   if (isLocked && !unlocked) {
     return <ChatLockScreen chatId={friend.user_id} onUnlock={() => setUnlocked(true)} />;
   }
@@ -679,6 +824,24 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
                 messageId={msg.id}
               />
             </div>
+          ) : messageType === 'image' || messageType === 'video' || messageType === 'document' ? (
+            <div className="flex flex-col gap-1">
+              <MediaMessage 
+                message={msg} 
+                isMe={isMe}
+                colorPrimary={friend.color_primary || undefined}
+                colorSecondary={friend.color_secondary || undefined}
+              />
+              <div className={cn("flex items-center text-[10px] opacity-60 px-2", isMe && "justify-end")}>
+                {formatTime(msg.created_at)}
+                <MessageStatus status={msg.status || 'sent'} isMe={isMe} />
+              </div>
+              <MessageReactions 
+                reactions={msg.reactions || []} 
+                onToggle={(emoji) => handleToggleReaction(msg.id, emoji)}
+                messageId={msg.id}
+              />
+            </div>
           ) : (
             <div className="flex flex-col gap-1">
               <div 
@@ -757,9 +920,6 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => onVideoCall?.(friend)} type="button">
-              <Video className="w-5 h-5" />
-            </Button>
           </div>
         </div>
       </div>
@@ -883,6 +1043,29 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
         )}
       </AnimatePresence>
 
+      {/* Hidden file inputs */}
+      <input 
+        ref={fileInputRef} 
+        type="file" 
+        accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx" 
+        className="hidden" 
+        onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'document')} 
+      />
+      <input 
+        ref={imageInputRef} 
+        type="file" 
+        accept="image/*" 
+        className="hidden" 
+        onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'image')} 
+      />
+      <input 
+        ref={videoInputRef} 
+        type="file" 
+        accept="video/*" 
+        className="hidden" 
+        onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'video')} 
+      />
+
       {/* Input Bar */}
       <div className="p-3 border-t border-border/30 safe-bottom" style={{ background: `linear-gradient(0deg, ${friend.color_primary || '#4ade80'}08, transparent)` }}>
         <AnimatePresence mode="wait">
@@ -897,6 +1080,52 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           ) : (
             <motion.div key="input" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               className="flex items-center gap-2">
+              {/* Attachment button */}
+              <div className="relative">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full shrink-0" 
+                  onClick={() => setShowAttachMenu(!showAttachMenu)}
+                  type="button"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </Button>
+                
+                <AnimatePresence>
+                  {showAttachMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                      className="absolute bottom-full left-0 mb-2 p-2 rounded-2xl glass shadow-lg flex flex-col gap-1 min-w-[140px]"
+                    >
+                      <button
+                        onClick={() => imageInputRef.current?.click()}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-muted/50 transition-colors text-sm"
+                      >
+                        <ImageIcon className="w-4 h-4 text-primary" />
+                        <span>Image</span>
+                      </button>
+                      <button
+                        onClick={() => videoInputRef.current?.click()}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-muted/50 transition-colors text-sm"
+                      >
+                        <Film className="w-4 h-4 text-neon-pink" />
+                        <span>Video</span>
+                      </button>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-muted/50 transition-colors text-sm"
+                      >
+                        <FileText className="w-4 h-4 text-neon-cyan" />
+                        <span>Document</span>
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              
               <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={() => setShowARCamera(true)}>
                 <Camera className="w-5 h-5" />
               </Button>
