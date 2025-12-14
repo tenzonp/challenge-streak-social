@@ -41,6 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
 type Tab = 'feed' | 'challenges' | 'profile';
+
 type FeedTab = 'friends' | 'global';
 
 interface LocationState {
