@@ -88,7 +88,7 @@ const SpinWheelModal = ({ onClose }: SpinWheelModalProps) => {
 
   const generateInviteLink = () => {
     if (!result || !profile) return '';
-    const baseUrl = 'https://woup.iscilla';
+    const baseUrl = window.location.origin;
     const params = new URLSearchParams({
       from: profile.display_name,
       msg: result.text,
