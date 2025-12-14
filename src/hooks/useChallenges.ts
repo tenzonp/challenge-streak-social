@@ -60,6 +60,33 @@ export const useChallenges = () => {
   const sendChallenge = async (toUserId: string, challengeText: string) => {
     if (!user) return { error: new Error('Not authenticated') };
 
+    // Check if user can receive challenges based on privacy settings
+    const { data: privacySettings } = await supabase
+      .from('privacy_settings')
+      .select('who_can_challenge')
+      .eq('user_id', toUserId)
+      .single();
+
+    const challengeSetting = privacySettings?.who_can_challenge || 'friends_only';
+
+    if (challengeSetting === 'no_one') {
+      return { error: new Error('This user has disabled challenges') };
+    }
+
+    if (challengeSetting === 'friends_only') {
+      // Check if they are friends
+      const { data: friendship } = await supabase
+        .from('friendships')
+        .select('id')
+        .eq('status', 'accepted')
+        .or(`and(user_id.eq.${user.id},friend_id.eq.${toUserId}),and(user_id.eq.${toUserId},friend_id.eq.${user.id})`)
+        .single();
+
+      if (!friendship) {
+        return { error: new Error('You can only challenge your friends') };
+      }
+    }
+
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
     const { error } = await supabase

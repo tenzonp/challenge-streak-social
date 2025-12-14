@@ -559,6 +559,39 @@ export type Database = {
           },
         ]
       }
+      privacy_settings: {
+        Row: {
+          created_at: string
+          id: string
+          post_visibility: string
+          show_spotify_publicly: boolean
+          show_streak_publicly: boolean
+          updated_at: string
+          user_id: string
+          who_can_challenge: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_visibility?: string
+          show_spotify_publicly?: boolean
+          show_streak_publicly?: boolean
+          updated_at?: string
+          user_id: string
+          who_can_challenge?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_visibility?: string
+          show_spotify_publicly?: boolean
+          show_streak_publicly?: boolean
+          updated_at?: string
+          user_id?: string
+          who_can_challenge?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -854,6 +887,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_send_challenge: {
+        Args: { receiver_id: string; sender_id: string }
+        Returns: boolean
+      }
+      can_view_user_posts: {
+        Args: { poster_id: string; viewer_id: string }
+        Returns: boolean
+      }
       increment_post_views: {
         Args: { p_response_id: string }
         Returns: undefined
