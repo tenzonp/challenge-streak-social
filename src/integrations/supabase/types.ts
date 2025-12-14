@@ -295,6 +295,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          allow_save: boolean | null
           audio_duration: number | null
           content: string
           created_at: string
@@ -310,6 +311,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          allow_save?: boolean | null
           audio_duration?: number | null
           content: string
           created_at?: string
@@ -325,6 +327,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          allow_save?: boolean | null
           audio_duration?: number | null
           content?: string
           created_at?: string

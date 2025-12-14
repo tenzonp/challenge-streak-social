@@ -31,6 +31,7 @@ export interface Message {
   reply_to?: Message | null;
   is_reported?: boolean;
   reactions?: MessageReaction[];
+  allow_save?: boolean;
 }
 
 export interface Conversation {
@@ -109,7 +110,8 @@ export const useMessages = () => {
     messageType: MessageType = 'text',
     mediaUrl?: string,
     audioDuration?: number,
-    replyToId?: string
+    replyToId?: string,
+    allowSave: boolean = true
   ) => {
     if (!user) return { error: new Error('Not authenticated') };
 
@@ -125,6 +127,7 @@ export const useMessages = () => {
         snap_views_remaining: messageType === 'snap' ? 3 : null,
         audio_duration: audioDuration,
         reply_to_id: replyToId,
+        allow_save: allowSave,
       });
 
     if (!error) { fetchConversations(); }
