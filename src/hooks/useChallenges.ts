@@ -74,15 +74,24 @@ export const useChallenges = () => {
     }
 
     if (challengeSetting === 'friends_only') {
-      // Check if they are friends
-      const { data: friendship } = await supabase
+      // Check if they are friends (check both directions)
+      const { data: friendship1 } = await supabase
         .from('friendships')
         .select('id')
         .eq('status', 'accepted')
-        .or(`and(user_id.eq.${user.id},friend_id.eq.${toUserId}),and(user_id.eq.${toUserId},friend_id.eq.${user.id})`)
-        .single();
+        .eq('user_id', user.id)
+        .eq('friend_id', toUserId)
+        .maybeSingle();
 
-      if (!friendship) {
+      const { data: friendship2 } = await supabase
+        .from('friendships')
+        .select('id')
+        .eq('status', 'accepted')
+        .eq('user_id', toUserId)
+        .eq('friend_id', user.id)
+        .maybeSingle();
+
+      if (!friendship1 && !friendship2) {
         return { error: new Error('You can only challenge your friends') };
       }
     }
