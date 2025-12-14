@@ -131,10 +131,10 @@ export const useMessages = () => {
     return { error };
   };
 
-  const getMessages = async (partnerId: string) => {
+  const getMessages = async (partnerId: string, searchQuery?: string) => {
     if (!user) return [];
 
-    const { data } = await supabase
+    let query = supabase
       .from('messages')
       .select(`
         *,
@@ -142,6 +142,13 @@ export const useMessages = () => {
       `)
       .or(`and(sender_id.eq.${user.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${user.id})`)
       .order('created_at', { ascending: true });
+
+    // Apply search filter if provided
+    if (searchQuery && searchQuery.trim()) {
+      query = query.ilike('content', `%${searchQuery.trim()}%`);
+    }
+
+    const { data } = await query;
 
     // Mark as read and update status
     await supabase
@@ -167,6 +174,31 @@ export const useMessages = () => {
     }
 
     return (data || []) as Message[];
+  };
+
+  const searchMessages = async (partnerId: string, searchQuery: string) => {
+    if (!user || !searchQuery.trim()) return [];
+
+    const { data } = await supabase
+      .from('messages')
+      .select(`
+        *,
+        sender:profiles!messages_sender_id_fkey(*)
+      `)
+      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${user.id})`)
+      .ilike('content', `%${searchQuery.trim()}%`)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    return (data || []) as Message[];
+  };
+
+  const markSnapAsViewed = async (messageId: string) => {
+    // This updates the status to 'read' when a snap is viewed
+    await supabase
+      .from('messages')
+      .update({ status: 'read' })
+      .eq('id', messageId);
   };
 
   const deleteMessage = async (messageId: string) => {
@@ -253,6 +285,8 @@ export const useMessages = () => {
     loading, 
     sendMessage, 
     getMessages, 
+    searchMessages,
+    markSnapAsViewed,
     refetch: fetchConversations,
     deleteMessage,
     deleteAllChat,

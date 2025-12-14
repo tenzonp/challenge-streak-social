@@ -3,10 +3,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 interface SignalingMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'call-ended';
+  type: 'offer' | 'answer' | 'ice-candidate' | 'call-ended' | 'call-rejected';
   data: any;
   from: string;
   to: string;
+  callerName?: string;
+  callerAvatar?: string;
+}
+
+export interface IncomingCallData {
+  from: string;
+  callerName: string;
+  callerAvatar: string;
+  offer: RTCSessionDescriptionInit;
 }
 
 export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
@@ -14,6 +23,7 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
   const [isInCall, setIsInCall] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [isReceivingCall, setIsReceivingCall] = useState(false);
+  const [incomingCallData, setIncomingCallData] = useState<IncomingCallData | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isMuted, setIsMuted] = useState(false);
@@ -22,6 +32,7 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
+  const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
 
   const cleanup = useCallback(() => {
     if (localStream) {
@@ -36,10 +47,12 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
     setIsInCall(false);
     setIsCalling(false);
     setIsReceivingCall(false);
+    setIncomingCallData(null);
+    pendingOfferRef.current = null;
     iceCandidatesQueue.current = [];
   }, [localStream]);
 
-  const sendSignal = useCallback(async (type: SignalingMessage['type'], data: any) => {
+  const sendSignal = useCallback(async (type: SignalingMessage['type'], data: any, extras?: Partial<SignalingMessage>) => {
     if (!user || !channelRef.current) return;
     
     await channelRef.current.send({
@@ -49,7 +62,8 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
         type,
         data,
         from: user.id,
-        to: partnerId
+        to: partnerId,
+        ...extras
       }
     });
   }, [user, partnerId]);
@@ -102,7 +116,7 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
     return pc;
   }, [cleanup, sendSignal, onCallEnded]);
 
-  const startCall = useCallback(async () => {
+  const startCall = useCallback(async (callerName?: string, callerAvatar?: string) => {
     if (!user) return;
     
     setIsCalling(true);
@@ -114,7 +128,7 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
       await pc.setLocalDescription(offer);
       
       console.log('Sending offer');
-      await sendSignal('offer', offer);
+      await sendSignal('offer', offer, { callerName, callerAvatar });
       
     } catch (error) {
       console.error('Failed to start call:', error);
@@ -123,13 +137,14 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
     }
   }, [user, createPeerConnection, sendSignal, cleanup]);
 
-  const answerCall = useCallback(async (offer: RTCSessionDescriptionInit) => {
-    if (!user) return;
+  const acceptCall = useCallback(async () => {
+    if (!user || !pendingOfferRef.current) return;
     
     try {
+      setIsReceivingCall(false);
       const pc = await createPeerConnection();
       
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
       
       // Process queued ICE candidates
       for (const candidate of iceCandidatesQueue.current) {
@@ -144,13 +159,22 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
       await sendSignal('answer', answer);
       
       setIsInCall(true);
-      setIsReceivingCall(false);
+      setIncomingCallData(null);
+      pendingOfferRef.current = null;
       
     } catch (error) {
       console.error('Failed to answer call:', error);
       cleanup();
     }
   }, [user, createPeerConnection, sendSignal, cleanup]);
+
+  const rejectCall = useCallback(async () => {
+    await sendSignal('call-rejected', {});
+    setIsReceivingCall(false);
+    setIncomingCallData(null);
+    pendingOfferRef.current = null;
+    iceCandidatesQueue.current = [];
+  }, [sendSignal]);
 
   const endCall = useCallback(() => {
     sendSignal('call-ended', {});
@@ -195,16 +219,23 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
 
       switch (signal.type) {
         case 'offer':
-          setIsReceivingCall(true);
-          // Store offer and wait for user to accept
+          // Store offer and show incoming call UI
+          pendingOfferRef.current = signal.data;
           iceCandidatesQueue.current = [];
-          // Auto-answer for now (you can add UI to accept/reject)
-          await answerCall(signal.data);
+          setIsReceivingCall(true);
+          setIncomingCallData({
+            from: signal.from,
+            callerName: signal.callerName || 'Unknown',
+            callerAvatar: signal.callerAvatar || '',
+            offer: signal.data
+          });
           break;
           
         case 'answer':
           if (pcRef.current) {
             await pcRef.current.setRemoteDescription(new RTCSessionDescription(signal.data));
+            setIsInCall(true);
+            setIsCalling(false);
           }
           break;
           
@@ -221,6 +252,11 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
           cleanup();
           onCallEnded?.();
           break;
+
+        case 'call-rejected':
+          cleanup();
+          onCallEnded?.();
+          break;
       }
     });
 
@@ -234,20 +270,45 @@ export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
       supabase.removeChannel(channel);
       cleanup();
     };
-  }, [user, partnerId, answerCall, cleanup, onCallEnded]);
+  }, [user, partnerId, cleanup, onCallEnded]);
 
   return {
     isInCall,
     isCalling,
     isReceivingCall,
+    incomingCallData,
     localStream,
     remoteStream,
     isMuted,
     isVideoOff,
     startCall,
-    answerCall,
+    acceptCall,
+    rejectCall,
     endCall,
     toggleMute,
     toggleVideo
   };
+};
+
+// Global hook for listening to incoming calls from any user
+export const useIncomingCalls = (onIncomingCall: (data: IncomingCallData) => void) => {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase.channel(`incoming-calls-${user.id}`);
+
+    channel.on('broadcast', { event: 'incoming-call' }, ({ payload }) => {
+      if (payload.to === user.id) {
+        onIncomingCall(payload as IncomingCallData);
+      }
+    });
+
+    channel.subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, onIncomingCall]);
 };
