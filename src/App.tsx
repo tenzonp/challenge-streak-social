@@ -10,6 +10,8 @@ import UpdatePassword from "./pages/UpdatePassword";
 import NotificationSettings from "./pages/NotificationSettings";
 import NotificationAdmin from "./pages/NotificationAdmin";
 import BlockedUsers from "./pages/BlockedUsers";
+import Settings from "./pages/Settings";
+import SetupProfile from "./pages/SetupProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,7 +29,9 @@ const App = () => (
             <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/notifications" element={<NotificationSettings />} />
             <Route path="/admin/notifications" element={<NotificationAdmin />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/settings/blocked" element={<BlockedUsers />} />
+            <Route path="/setup-profile" element={<SetupProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
