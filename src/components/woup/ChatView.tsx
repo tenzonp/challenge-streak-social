@@ -14,6 +14,7 @@ import SnapEditor from './SnapEditor';
 import TypingIndicator from './TypingIndicator';
 import ARFaceFilters from './ARFaceFilters';
 import { toast } from 'sonner';
+import { downloadFile } from '@/utils/nativeDownload';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -319,21 +320,7 @@ const MediaMessage = ({
     e.stopPropagation();
     if (!message.media_url || !canSave) return;
     
-    try {
-      const response = await fetch(message.media_url);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = getFileName();
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      toast.success('Saved to device');
-    } catch {
-      toast.error('Failed to save');
-    }
+    await downloadFile(message.media_url, getFileName());
   };
 
   if (isImage && message.media_url) {
@@ -987,7 +974,7 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
       animate={{ x: 0 }} 
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25 }}
-      className="fixed inset-0 z-50 bg-background flex flex-col"
+      className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden max-w-full"
     >
       {/* Header */}
       <div className="border-b border-border/30 safe-top"
@@ -1179,7 +1166,7 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
       />
 
       {/* Input Bar */}
-      <div className="p-3 border-t border-border/30 safe-bottom" style={{ background: `linear-gradient(0deg, ${friend.color_primary || '#4ade80'}08, transparent)` }}>
+      <div className="p-3 border-t border-border/30 bg-background safe-bottom" style={{ background: `linear-gradient(0deg, ${friend.color_primary || '#4ade80'}08, transparent)` }}>
         <AnimatePresence mode="wait">
           {isRecording ? (
             <motion.div key="recording" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
@@ -1262,7 +1249,7 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
                 <Camera className="w-5 h-5" />
               </Button>
               <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={startRecording}><Mic className="w-5 h-5" /></Button>
-              <div className="flex-1 flex items-center gap-2 bg-muted/50 rounded-2xl p-1.5 border border-border/30">
+              <div className="flex-1 flex items-center gap-2 bg-muted/50 rounded-2xl p-1.5 border border-border/30 min-w-0 overflow-hidden">
                 <input 
                   ref={inputRef} 
                   value={input} 
