@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { ArrowLeft, MessageCircle, Search, Sparkles } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { ArrowLeft, MessageCircle, Search, Sparkles, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
-import { useMessages, Conversation } from '@/hooks/useMessages';
+import { useMessages } from '@/hooks/useMessages';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@/components/ui/input';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useToast } from '@/hooks/use-toast';
 
 interface ChatsListProps {
   onSelectChat: (friend: Profile) => void;
@@ -12,8 +14,16 @@ interface ChatsListProps {
 }
 
 const ChatsList = ({ onSelectChat, onClose }: ChatsListProps) => {
-  const { conversations, loading } = useMessages();
+  const { conversations, loading, refetch } = useMessages();
   const [search, setSearch] = useState('');
+  const { toast } = useToast();
+
+  const handleRefresh = useCallback(async () => {
+    await refetch?.();
+    toast({ title: 'Refreshed' });
+  }, [refetch, toast]);
+
+  const { pullDistance, refreshing, handlers } = usePullToRefresh({ onRefresh: handleRefresh });
 
   const filteredConversations = conversations.filter(conv => 
     conv.friend.display_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -42,7 +52,24 @@ const ChatsList = ({ onSelectChat, onClose }: ChatsListProps) => {
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25 }}
       className="fixed inset-0 z-50 bg-background flex flex-col"
+      {...handlers}
     >
+      {/* Pull to refresh indicator */}
+      <motion.div
+        className="absolute top-0 left-0 right-0 flex justify-center z-40 pointer-events-none safe-top"
+        animate={{ 
+          y: pullDistance > 0 ? pullDistance - 40 : -40,
+          opacity: pullDistance > 30 ? 1 : 0 
+        }}
+      >
+        <div className="bg-primary/20 backdrop-blur-sm rounded-full p-2 mt-2">
+          <RefreshCw 
+            className={`w-5 h-5 text-primary ${refreshing ? 'animate-spin' : ''}`}
+            style={{ transform: `rotate(${pullDistance * 3}deg)` }}
+          />
+        </div>
+      </motion.div>
+
       {/* Header */}
       <div className="border-b border-border/30 p-4 safe-top">
         <div className="flex items-center gap-3 mb-4">
