@@ -49,8 +49,12 @@ export type Database = {
           caption: string | null
           challenge_id: string
           created_at: string
+          flag_reason: string | null
           front_photo_url: string
           id: string
+          is_flagged: boolean | null
+          is_hidden: boolean | null
+          report_count: number | null
           user_id: string
         }
         Insert: {
@@ -58,8 +62,12 @@ export type Database = {
           caption?: string | null
           challenge_id: string
           created_at?: string
+          flag_reason?: string | null
           front_photo_url: string
           id?: string
+          is_flagged?: boolean | null
+          is_hidden?: boolean | null
+          report_count?: number | null
           user_id: string
         }
         Update: {
@@ -67,8 +75,12 @@ export type Database = {
           caption?: string | null
           challenge_id?: string
           created_at?: string
+          flag_reason?: string | null
           front_photo_url?: string
           id?: string
+          is_flagged?: boolean | null
+          is_hidden?: boolean | null
+          report_count?: number | null
           user_id?: string
         }
         Relationships: [
@@ -479,6 +491,41 @@ export type Database = {
           views_count?: number
         }
         Relationships: []
+      }
+      post_reports: {
+        Row: {
+          created_at: string
+          details: string | null
+          id: string
+          reason: string
+          response_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason: string
+          response_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason?: string
+          response_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_reports_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: false
+            referencedRelation: "challenge_responses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       posts: {
         Row: {
