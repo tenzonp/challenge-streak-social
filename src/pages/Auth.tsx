@@ -1,212 +1,60 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Loader2, Sparkles, Zap, Flame, Trophy, Phone, Mail, ArrowLeft, KeyRound, AtSign } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Sparkles, Zap, Flame, Trophy, Copy, Check } from 'lucide-react';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 
-const emailAuthSchema = z.object({
-  email: z.string().email('invalid email address').max(255),
+const loginSchema = z.object({
+  userCode: z.string().length(8, 'user id must be 8 digits').regex(/^\d{8}$/, 'user id must be 8 digits'),
   password: z.string().min(6, 'password must be at least 6 characters').max(100),
-  username: z.string().min(3, 'username must be at least 3 characters').max(30).optional(),
-  displayName: z.string().min(1, 'display name is required').max(50).optional(),
 });
 
-const usernameLoginSchema = z.object({
+const signupSchema = z.object({
   username: z.string().min(3, 'username must be at least 3 characters').max(30),
+  displayName: z.string().min(1, 'display name is required').max(50),
   password: z.string().min(6, 'password must be at least 6 characters').max(100),
 });
 
-const phoneAuthSchema = z.object({
-  phone: z.string().min(10, 'phone number must be at least 10 digits').max(15),
-  otp: z.string().length(6, 'OTP must be 6 digits').optional(),
-});
-
-const forgotPasswordSchema = z.object({
-  email: z.string().email('invalid email address').max(255),
-});
-
-type AuthMethod = 'email' | 'phone' | 'username';
-type AuthView = 'main' | 'forgot-password' | 'reset-sent' | 'verification-sent';
+type AuthView = 'main' | 'signup-success';
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { signIn, signUp } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [authMethod, setAuthMethod] = useState<AuthMethod>('email');
   const [authView, setAuthView] = useState<AuthView>('main');
+  const [copied, setCopied] = useState(false);
   
-  // Email auth state
-  const [email, setEmail] = useState('');
+  // Login state
+  const [userCode, setUserCode] = useState('');
   const [password, setPassword] = useState('');
+  
+  // Signup state
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
-  
-  // Phone auth state
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  
-  // Username login state
-  const [loginUsername, setLoginUsername] = useState('');
+  const [generatedUserCode, setGeneratedUserCode] = useState('');
   
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleForgotPassword = async () => {
-    setErrors({});
-    const validation = forgotPasswordSchema.safeParse({ email });
-    
-    if (!validation.success) {
-      const fieldErrors: Record<string, string> = {};
-      validation.error.errors.forEach(err => {
-        if (err.path[0]) {
-          fieldErrors[err.path[0] as string] = err.message;
-        }
-      });
-      setErrors(fieldErrors);
-      return;
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/');
     }
+  }, [user, navigate]);
 
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth?type=recovery`,
-      });
-      
-      if (error) {
-        toast({
-          title: "failed to send reset email",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        setAuthView('reset-sent');
-        toast({
-          title: "check your email! 📧",
-          description: "we sent you a password reset link",
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSendOtp = async () => {
-    setErrors({});
-    const validation = phoneAuthSchema.safeParse({ phone });
-    
-    if (!validation.success) {
-      const fieldErrors: Record<string, string> = {};
-      validation.error.errors.forEach(err => {
-        if (err.path[0]) {
-          fieldErrors[err.path[0] as string] = err.message;
-        }
-      });
-      setErrors(fieldErrors);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`;
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: formattedPhone,
-      });
-      
-      if (error) {
-        toast({
-          title: "failed to send OTP",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        setOtpSent(true);
-        toast({
-          title: "OTP sent! 📱",
-          description: "check your phone for the verification code",
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    setErrors({});
-    const validation = phoneAuthSchema.safeParse({ phone, otp });
-    
-    if (!validation.success) {
-      const fieldErrors: Record<string, string> = {};
-      validation.error.errors.forEach(err => {
-        if (err.path[0]) {
-          fieldErrors[err.path[0] as string] = err.message;
-        }
-      });
-      setErrors(fieldErrors);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`;
-      const { data, error } = await supabase.auth.verifyOtp({
-        phone: formattedPhone,
-        token: otp,
-        type: 'sms',
-      });
-      
-      if (error) {
-        toast({
-          title: "verification failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        // Check if user has a profile
-        if (data.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('username')
-            .eq('user_id', data.user.id)
-            .single();
-          
-          if (!profile?.username) {
-            // New user from phone auth - redirect to setup profile
-            toast({
-              title: "one more step! ✨",
-              description: "let's set up your profile",
-            });
-            navigate('/setup-profile');
-          } else {
-            toast({
-              title: "welcome back! 🎉",
-              description: "you're now logged in",
-            });
-            navigate('/');
-          }
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUsernameLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
     
-    const validation = usernameLoginSchema.safeParse({
-      username: loginUsername,
-      password,
-    });
-
+    const validation = loginSchema.safeParse({ userCode, password });
     if (!validation.success) {
       const fieldErrors: Record<string, string> = {};
       validation.error.errors.forEach(err => {
@@ -220,17 +68,17 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      // Look up email by username
+      // Look up email by user_code
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('email')
-        .eq('username', loginUsername.toLowerCase())
+        .eq('user_code', userCode)
         .single();
 
       if (profileError || !profile) {
         toast({
           title: "user not found",
-          description: "no account with that username exists",
+          description: "no account with that user id exists",
           variant: "destructive",
         });
         setLoading(false);
@@ -239,16 +87,20 @@ const Auth = () => {
 
       if (!profile.email) {
         toast({
-          title: "email not linked",
-          description: "this account doesn't have an email. try phone login.",
+          title: "account error",
+          description: "this account is not properly set up",
           variant: "destructive",
         });
         setLoading(false);
         return;
       }
 
-      // Sign in with the retrieved email
-      const { error } = await signIn(profile.email, password);
+      // Sign in with the internal email
+      const { error } = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password,
+      });
+      
       if (error) {
         toast({
           title: "login failed",
@@ -267,17 +119,11 @@ const Auth = () => {
     }
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
     
-    const validation = emailAuthSchema.safeParse({
-      email,
-      password,
-      username: isLogin ? undefined : username,
-      displayName: isLogin ? undefined : displayName,
-    });
-
+    const validation = signupSchema.safeParse({ username, displayName, password });
     if (!validation.success) {
       const fieldErrors: Record<string, string> = {};
       validation.error.errors.forEach(err => {
@@ -290,54 +136,95 @@ const Auth = () => {
     }
 
     setLoading(true);
-
     try {
-      if (isLogin) {
-        const { error } = await signIn(email, password);
-        if (error) {
-          toast({
-            title: "login failed",
-            description: error.message,
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "welcome back! 🎉",
-            description: "let's see what challenges await",
-          });
-          navigate('/');
-        }
-      } else {
-        const { error } = await signUp(email, password, username, displayName);
-        if (error) {
-          if (error.message.includes('already registered')) {
-            toast({
-              title: "email already exists",
-              description: "try logging in instead",
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "signup failed",
-              description: error.message,
-              variant: "destructive",
-            });
+      // Check if username is already taken
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', username.toLowerCase())
+        .single();
+
+      if (existingUser) {
+        setErrors({ username: 'username is already taken' });
+        setLoading(false);
+        return;
+      }
+
+      // Generate unique 8-digit code
+      const { data: codeData, error: codeError } = await supabase.rpc('generate_unique_user_code');
+      if (codeError || !codeData) {
+        toast({
+          title: "signup failed",
+          description: "could not generate user id",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
+      const newUserCode = codeData as string;
+      const internalEmail = `${newUserCode}@woup.internal`;
+
+      // Create user with internal email
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: internalEmail,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            username: username.toLowerCase(),
+            display_name: displayName,
+            user_code: newUserCode,
           }
-        } else {
-          setAuthView('verification-sent');
-          toast({
-            title: "check your email! 📧",
-            description: "we sent you a verification link",
-          });
         }
+      });
+
+      if (authError) {
+        toast({
+          title: "signup failed",
+          description: authError.message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (authData.user) {
+        // Update profile with user_code and email
+        await supabase
+          .from('profiles')
+          .update({ 
+            user_code: newUserCode,
+            email: internalEmail,
+            username: username.toLowerCase(),
+            display_name: displayName,
+          })
+          .eq('user_id', authData.user.id);
+
+        setGeneratedUserCode(newUserCode);
+        setAuthView('signup-success');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Email verification sent view
-  if (authView === 'verification-sent') {
+  const copyUserCode = () => {
+    navigator.clipboard.writeText(generatedUserCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({
+      title: "copied!",
+      description: "user id copied to clipboard",
+    });
+  };
+
+  const proceedToApp = () => {
+    navigate('/');
+  };
+
+  // Signup success view
+  if (authView === 'signup-success') {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -362,155 +249,42 @@ const Auth = () => {
             animate={{ scale: [1, 1.1, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            <Mail className="w-16 h-16 mx-auto text-primary mb-4" />
+            <Sparkles className="w-16 h-16 mx-auto text-primary mb-4" />
           </motion.div>
           
-          <h2 className="text-2xl font-bold mb-2">check your email! 📧</h2>
+          <h2 className="text-2xl font-bold mb-2">welcome to woup! 🎉</h2>
           <p className="text-muted-foreground mb-6">
-            we sent a verification link to <span className="text-primary font-medium">{email}</span>
-          </p>
-          <p className="text-sm text-muted-foreground mb-6">
-            click the link in the email to verify your account and start using woup!
+            your unique user id is ready
           </p>
           
-          <Button
-            variant="outline"
-            onClick={() => {
-              setAuthView('main');
-              setIsLogin(true);
-            }}
-            className="w-full"
-          >
-            back to login
-          </Button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Password reset email sent view
-  if (authView === 'reset-sent') {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <motion.div 
-            className="absolute top-20 left-10 w-32 h-32 rounded-full bg-neon-pink/20 blur-3xl"
-            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-            transition={{ duration: 4, repeat: Infinity }}
-          />
-          <motion.div 
-            className="absolute bottom-32 right-10 w-40 h-40 rounded-full bg-neon-cyan/20 blur-3xl"
-            animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.6, 0.4] }}
-            transition={{ duration: 5, repeat: Infinity }}
-          />
-        </div>
-
-        <motion.div 
-          className="w-full max-w-sm glass-strong rounded-4xl p-8 text-center relative z-10"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
-          <motion.div
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            <KeyRound className="w-16 h-16 mx-auto text-primary mb-4" />
-          </motion.div>
-          
-          <h2 className="text-2xl font-bold mb-2">check your email! 📧</h2>
-          <p className="text-muted-foreground mb-6">
-            we sent a password reset link to <span className="text-primary font-medium">{email}</span>
-          </p>
-          <p className="text-sm text-muted-foreground mb-6">
-            click the link in the email to reset your password
-          </p>
-          
-          <Button
-            variant="outline"
-            onClick={() => {
-              setAuthView('main');
-              setIsLogin(true);
-            }}
-            className="w-full"
-          >
-            back to login
-          </Button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Forgot password view
-  if (authView === 'forgot-password') {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <motion.div 
-            className="absolute top-20 left-10 w-32 h-32 rounded-full bg-neon-pink/20 blur-3xl"
-            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-            transition={{ duration: 4, repeat: Infinity }}
-          />
-          <motion.div 
-            className="absolute bottom-32 right-10 w-40 h-40 rounded-full bg-neon-cyan/20 blur-3xl"
-            animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.6, 0.4] }}
-            transition={{ duration: 5, repeat: Infinity }}
-          />
-          <motion.div 
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-neon-green/10 blur-3xl"
-            animate={{ scale: [1, 1.3, 1], rotate: [0, 180, 360] }}
-            transition={{ duration: 8, repeat: Infinity }}
-          />
-        </div>
-
-        <motion.div 
-          className="w-full max-w-sm glass-strong rounded-4xl p-6 relative z-10"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
-          <button
-            onClick={() => setAuthView('main')}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm">back</span>
-          </button>
-
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <KeyRound className="w-5 h-5 text-primary" />
-            <h2 className="text-xl font-bold">forgot password?</h2>
-          </div>
-
-          <p className="text-muted-foreground text-sm text-center mb-6">
-            no worries! enter your email and we'll send you a reset link
-          </p>
-
-          <div className="space-y-3">
-            <div>
-              <input
-                type="email"
-                placeholder="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
-                maxLength={255}
-              />
-              {errors.email && <p className="text-destructive text-xs mt-1">{errors.email}</p>}
+          <div className="bg-muted/50 rounded-2xl p-4 mb-4">
+            <p className="text-sm text-muted-foreground mb-2">your user id</p>
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-3xl font-mono font-bold tracking-wider text-primary">
+                {generatedUserCode}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={copyUserCode}
+                className="rounded-full"
+              >
+                {copied ? <Check className="w-5 h-5 text-primary" /> : <Copy className="w-5 h-5" />}
+              </Button>
             </div>
-
-            <Button 
-              type="button"
-              variant="neon" 
-              className="w-full h-12 text-base font-bold"
-              disabled={loading}
-              onClick={handleForgotPassword}
-            >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                'send reset link 📧'
-              )}
-            </Button>
           </div>
+          
+          <p className="text-sm text-muted-foreground mb-6">
+            save this id! you'll need it to log in
+          </p>
+          
+          <Button
+            variant="neon"
+            onClick={proceedToApp}
+            className="w-full h-12 text-base font-bold"
+          >
+            let's go! 🚀
+          </Button>
         </motion.div>
       </div>
     );
@@ -518,7 +292,7 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Animated background elements */}
+      {/* Animated background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div 
           className="absolute top-20 left-10 w-32 h-32 rounded-full bg-neon-pink/20 blur-3xl"
@@ -539,115 +313,81 @@ const Auth = () => {
 
       {/* Logo */}
       <motion.div 
-        className="mb-8 text-center relative z-10"
+        className="mb-8 relative z-10"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ delay: 0.2 }}
       >
-        <motion.h1 
-          className="text-6xl font-black text-gradient-primary mb-3 tracking-tight"
-          animate={{ scale: [1, 1.02, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          woup
-        </motion.h1>
-        <p className="text-muted-foreground text-lg">challenge friends, be real ✨</p>
-        
-        {/* Feature highlights */}
-        <div className="flex items-center justify-center gap-4 mt-4">
-          <motion.div 
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neon-pink/20 border border-neon-pink/30"
-            whileHover={{ scale: 1.05 }}
-          >
-            <Zap className="w-4 h-4 text-neon-pink" />
-            <span className="text-xs font-medium text-neon-pink">challenges</span>
-          </motion.div>
-          <motion.div 
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neon-green/20 border border-neon-green/30"
-            whileHover={{ scale: 1.05 }}
-          >
-            <Flame className="w-4 h-4 text-neon-green" />
-            <span className="text-xs font-medium text-neon-green">streaks</span>
-          </motion.div>
-          <motion.div 
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neon-cyan/20 border border-neon-cyan/30"
-            whileHover={{ scale: 1.05 }}
-          >
-            <Trophy className="w-4 h-4 text-neon-cyan" />
-            <span className="text-xs font-medium text-neon-cyan">compete</span>
-          </motion.div>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-14 h-14 rounded-3xl bg-gradient-to-br from-neon-pink via-primary to-neon-cyan flex items-center justify-center shadow-2xl">
+            <Zap className="w-7 h-7 text-white" />
+          </div>
+          <h1 className="text-4xl font-black tracking-tight bg-gradient-to-r from-primary via-neon-pink to-neon-cyan bg-clip-text text-transparent">
+            woup
+          </h1>
         </div>
+        <p className="text-muted-foreground text-center text-sm">challenge your friends ⚡</p>
       </motion.div>
 
-      {/* Auth Card */}
+      {/* Features preview */}
+      <motion.div 
+        className="flex gap-3 mb-8 relative z-10"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        {[
+          { icon: Flame, label: 'streaks', color: 'text-neon-pink' },
+          { icon: Trophy, label: 'compete', color: 'text-neon-cyan' },
+          { icon: Sparkles, label: 'vibes', color: 'text-primary' },
+        ].map((feature, i) => (
+          <div key={feature.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full glass text-xs">
+            <feature.icon className={`w-3.5 h-3.5 ${feature.color}`} />
+            <span>{feature.label}</span>
+          </div>
+        ))}
+      </motion.div>
+
+      {/* Auth Form */}
       <motion.div 
         className="w-full max-w-sm glass-strong rounded-4xl p-6 relative z-10"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, delay: 0.2 }}
+        transition={{ delay: 0.3 }}
       >
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <Sparkles className="w-5 h-5 text-primary" />
-          <h2 className="text-xl font-bold">
-            {isLogin ? 'welcome back' : 'join the fun'}
-          </h2>
+        {/* Toggle */}
+        <div className="flex gap-2 p-1 rounded-2xl bg-muted/50 mb-6">
+          <button
+            onClick={() => { setIsLogin(true); setErrors({}); }}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
+              isLogin ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground'
+            }`}
+          >
+            login
+          </button>
+          <button
+            onClick={() => { setIsLogin(false); setErrors({}); }}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
+              !isLogin ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground'
+            }`}
+          >
+            sign up
+          </button>
         </div>
 
-        {/* Auth Method Toggle */}
-        <div className="flex gap-2 mb-4">
-          <Button
-            type="button"
-            variant={authMethod === 'email' ? 'default' : 'outline'}
-            className="flex-1 gap-1.5 text-xs px-2"
-            onClick={() => {
-              setAuthMethod('email');
-              setOtpSent(false);
-              setErrors({});
-            }}
-          >
-            <Mail className="w-3.5 h-3.5" />
-            email
-          </Button>
-          {isLogin && (
-            <Button
-              type="button"
-              variant={authMethod === 'username' ? 'default' : 'outline'}
-              className="flex-1 gap-1.5 text-xs px-2"
-              onClick={() => {
-                setAuthMethod('username');
-                setErrors({});
-              }}
-            >
-              <AtSign className="w-3.5 h-3.5" />
-              username
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant={authMethod === 'phone' ? 'default' : 'outline'}
-            className="flex-1 gap-1.5 text-xs px-2"
-            onClick={() => {
-              setAuthMethod('phone');
-              setErrors({});
-            }}
-          >
-            <Phone className="w-3.5 h-3.5" />
-            phone
-          </Button>
-        </div>
-
-        {authMethod === 'username' ? (
-          <form onSubmit={handleUsernameLogin} className="space-y-3">
+        {isLogin ? (
+          <form onSubmit={handleLogin} className="space-y-3">
             <div>
               <input
                 type="text"
-                placeholder="username"
-                value={loginUsername}
-                onChange={(e) => setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
-                maxLength={30}
+                placeholder="8-digit user id"
+                value={userCode}
+                onChange={(e) => setUserCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all font-mono text-center text-lg tracking-widest"
+                maxLength={8}
+                inputMode="numeric"
               />
-              {errors.username && <p className="text-destructive text-xs mt-1">{errors.username}</p>}
+              {errors.userCode && <p className="text-destructive text-xs mt-1">{errors.userCode}</p>}
             </div>
 
             <div className="relative">
@@ -682,46 +422,30 @@ const Auth = () => {
               )}
             </Button>
           </form>
-        ) : authMethod === 'email' ? (
-          <form onSubmit={handleEmailSubmit} className="space-y-3">
-            {!isLogin && (
-              <>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                    className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all focus:shadow-neon-green/20"
-                    maxLength={30}
-                  />
-                  {errors.username && <p className="text-destructive text-xs mt-1">{errors.username}</p>}
-                </div>
-                
-                <div>
-                  <input
-                    type="text"
-                    placeholder="display name"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
-                    maxLength={50}
-                  />
-                  {errors.displayName && <p className="text-destructive text-xs mt-1">{errors.displayName}</p>}
-                </div>
-              </>
-            )}
+        ) : (
+          <form onSubmit={handleSignup} className="space-y-3">
+            <div>
+              <input
+                type="text"
+                placeholder="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
+                maxLength={30}
+              />
+              {errors.username && <p className="text-destructive text-xs mt-1">{errors.username}</p>}
+            </div>
 
             <div>
               <input
-                type="email"
-                placeholder="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="display name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
                 className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
-                maxLength={255}
+                maxLength={50}
               />
-              {errors.email && <p className="text-destructive text-xs mt-1">{errors.email}</p>}
+              {errors.displayName && <p className="text-destructive text-xs mt-1">{errors.displayName}</p>}
             </div>
 
             <div className="relative">
@@ -743,16 +467,6 @@ const Auth = () => {
               {errors.password && <p className="text-destructive text-xs mt-1">{errors.password}</p>}
             </div>
 
-            {isLogin && (
-              <button
-                type="button"
-                onClick={() => setAuthView('forgot-password')}
-                className="text-primary text-sm hover:underline w-full text-right"
-              >
-                forgot password?
-              </button>
-            )}
-
             <Button 
               type="submit" 
               variant="neon" 
@@ -762,172 +476,21 @@ const Auth = () => {
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                isLogin ? "let's go! 🚀" : 'join now! ⚡'
+                "create account ✨"
               )}
             </Button>
           </form>
-        ) : (
-          <div className="space-y-3">
-            <div>
-              <input
-                type="tel"
-                placeholder="phone (with country code, e.g. +1234567890)"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/[^0-9+]/g, ''))}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
-                maxLength={15}
-                disabled={otpSent}
-              />
-              {errors.phone && <p className="text-destructive text-xs mt-1">{errors.phone}</p>}
-            </div>
-
-            {otpSent && (
-              <div>
-                <input
-                  type="text"
-                  placeholder="enter 6-digit OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-                  className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all text-center tracking-widest text-lg font-bold"
-                  maxLength={6}
-                />
-                {errors.otp && <p className="text-destructive text-xs mt-1">{errors.otp}</p>}
-              </div>
-            )}
-
-            {!otpSent ? (
-              <Button 
-                type="button"
-                variant="neon" 
-                className="w-full h-12 text-base font-bold"
-                disabled={loading}
-                onClick={handleSendOtp}
-              >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  'send OTP 📱'
-                )}
-              </Button>
-            ) : (
-              <div className="space-y-2">
-                <Button 
-                  type="button"
-                  variant="neon" 
-                  className="w-full h-12 text-base font-bold"
-                  disabled={loading}
-                  onClick={handleVerifyOtp}
-                >
-                  {loading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    'verify & login 🚀'
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full text-sm"
-                  onClick={() => {
-                    setOtpSent(false);
-                    setOtp('');
-                  }}
-                >
-                  change phone number
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Divider */}
-        <div className="relative my-5">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border/50"></div>
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">or continue with</span>
-          </div>
-        </div>
-
-        {/* Google Sign In */}
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full h-12 gap-3 font-medium"
-          disabled={loading}
-          onClick={async () => {
-            setLoading(true);
-            try {
-              const { error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                  redirectTo: `${window.location.origin}/`,
-                },
-              });
-              if (error) {
-                toast({
-                  title: "Google login failed",
-                  description: error.message,
-                  variant: "destructive",
-                });
-              }
-            } catch (e) {
-              toast({
-                title: "Error",
-                description: "Failed to start Google sign in",
-                variant: "destructive",
-              });
-            } finally {
-              setLoading(false);
-            }
-          }}
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path
-              fill="currentColor"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="currentColor"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="currentColor"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-            />
-            <path
-              fill="currentColor"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-            />
-          </svg>
-          Continue with Google
-        </Button>
-
-        {authMethod === 'email' && (
-          <div className="mt-5 text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm"
-            >
-              {isLogin ? "don't have an account? " : "already have an account? "}
-              <span className="text-primary font-bold">
-                {isLogin ? 'sign up' : 'log in'}
-              </span>
-            </button>
-          </div>
         )}
       </motion.div>
 
-      {/* Bottom tagline */}
+      {/* Footer */}
       <motion.p 
-        className="mt-8 text-xs text-muted-foreground text-center relative z-10"
+        className="mt-6 text-xs text-muted-foreground text-center relative z-10"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+        transition={{ delay: 0.6 }}
       >
-        be real. be spontaneous. be you. 💫
+        by joining you agree to our vibes ✌️
       </motion.p>
     </div>
   );

@@ -611,6 +611,7 @@ export type Database = {
           spotify_connected: boolean | null
           streak: number
           updated_at: string
+          user_code: string | null
           user_id: string
           username: string
           vibe: string | null
@@ -633,6 +634,7 @@ export type Database = {
           spotify_connected?: boolean | null
           streak?: number
           updated_at?: string
+          user_code?: string | null
           user_id: string
           username: string
           vibe?: string | null
@@ -655,6 +657,7 @@ export type Database = {
           spotify_connected?: boolean | null
           streak?: number
           updated_at?: string
+          user_code?: string | null
           user_id?: string
           username?: string
           vibe?: string | null
@@ -895,6 +898,7 @@ export type Database = {
         Args: { poster_id: string; viewer_id: string }
         Returns: boolean
       }
+      generate_unique_user_code: { Args: never; Returns: string }
       increment_post_views: {
         Args: { p_response_id: string }
         Returns: undefined
