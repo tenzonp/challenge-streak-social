@@ -1,6 +1,7 @@
 import { Home, Zap, User, Plus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { hapticFeedback } from '@/utils/nativeApp';
 
 type Tab = 'feed' | 'challenges' | 'profile';
 
@@ -18,12 +19,22 @@ const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel }: Bottom
     { id: 'profile', icon: User, label: 'You', activeColor: 'text-neon-purple' },
   ];
 
+  const handleTabChange = (tab: Tab) => {
+    hapticFeedback('light');
+    onTabChange(tab);
+  };
+
+  const handleSpinWheel = () => {
+    hapticFeedback('medium');
+    onSpinWheel();
+  };
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 glass-strong border-t border-border/30 pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 glass-strong border-t border-border/30 pb-safe bottom-nav">
       <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-around">
         {/* Left tab */}
         <motion.button
-          onClick={() => onTabChange(tabs[0].id)}
+          onClick={() => handleTabChange(tabs[0].id)}
           className={cn(
             "flex flex-col items-center gap-0.5 py-2 px-3 sm:px-5 rounded-xl transition-all duration-200",
             activeTab === tabs[0].id 
@@ -38,7 +49,7 @@ const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel }: Bottom
 
         {/* Center create/spin button */}
         <motion.button 
-          onClick={onSpinWheel} 
+          onClick={handleSpinWheel} 
           className="relative -mt-6"
           whileTap={{ scale: 0.9 }}
         >
@@ -54,13 +65,13 @@ const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel }: Bottom
             animate={{ scale: [1, 1.2, 1] }}
             transition={{ repeat: Infinity, duration: 1.5 }}
           >
-            <Sparkles className="w-3 h-3 text-white" />
+            <Sparkles className="w-3 h-3 text-foreground" />
           </motion.div>
         </motion.button>
 
         {/* Middle tab - Social/Challenges */}
         <motion.button
-          onClick={() => onTabChange(tabs[1].id)}
+          onClick={() => handleTabChange(tabs[1].id)}
           className={cn(
             "flex flex-col items-center gap-0.5 py-2 px-3 sm:px-5 rounded-xl transition-all duration-200 relative",
             activeTab === tabs[1].id 
@@ -75,7 +86,7 @@ const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel }: Bottom
 
         {/* Right tab */}
         <motion.button
-          onClick={() => onTabChange(tabs[2].id)}
+          onClick={() => handleTabChange(tabs[2].id)}
           className={cn(
             "flex flex-col items-center gap-0.5 py-2 px-3 sm:px-5 rounded-xl transition-all duration-200",
             activeTab === tabs[2].id 

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { hapticFeedback } from '@/utils/nativeApp';
 
 interface UsePullToRefreshOptions {
   onRefresh: () => Promise<void>;
@@ -9,6 +10,7 @@ export const usePullToRefresh = ({ onRefresh, threshold = 60 }: UsePullToRefresh
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [startY, setStartY] = useState(0);
+  const [hasTriggeredHaptic, setHasTriggeredHaptic] = useState(false);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
@@ -18,6 +20,7 @@ export const usePullToRefresh = ({ onRefresh, threshold = 60 }: UsePullToRefresh
     
     if (scrollTop === 0 && targetScrollTop === 0) {
       setStartY(e.touches[0].clientY);
+      setHasTriggeredHaptic(false);
     }
   }, []);
 
@@ -26,16 +29,26 @@ export const usePullToRefresh = ({ onRefresh, threshold = 60 }: UsePullToRefresh
     const currentY = e.touches[0].clientY;
     const distance = Math.max(0, Math.min(100, currentY - startY));
     setPullDistance(distance);
-  }, [startY]);
+
+    // Trigger haptic when crossing threshold
+    if (distance > threshold && !hasTriggeredHaptic) {
+      hapticFeedback('medium');
+      setHasTriggeredHaptic(true);
+    } else if (distance <= threshold && hasTriggeredHaptic) {
+      setHasTriggeredHaptic(false);
+    }
+  }, [startY, threshold, hasTriggeredHaptic]);
 
   const handleTouchEnd = useCallback(async () => {
     if (pullDistance > threshold && !refreshing) {
       setRefreshing(true);
+      hapticFeedback('success');
       await onRefresh();
       setRefreshing(false);
     }
     setPullDistance(0);
     setStartY(0);
+    setHasTriggeredHaptic(false);
   }, [pullDistance, refreshing, onRefresh, threshold]);
 
   return {
