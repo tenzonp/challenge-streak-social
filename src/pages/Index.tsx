@@ -25,6 +25,7 @@ import FriendRequestsModal from '@/components/woup/FriendRequestsModal';
 import SuggestedFriends from '@/components/woup/SuggestedFriends';
 import PostDetailModal from '@/components/woup/PostDetailModal';
 import AllPostsModal from '@/components/woup/AllPostsModal';
+import SpinWheelModal from '@/components/woup/SpinWheelModal';
 import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
 import { DayStreakCounter } from '@/components/woup/StreakBadges';
 import { ChallengeResponse } from '@/hooks/useChallenges';
@@ -97,6 +98,7 @@ const Index = () => {
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [viewingPost, setViewingPost] = useState<{ post: ChallengeResponse; user: Profile } | null>(null);
   const [showAllPosts, setShowAllPosts] = useState<Profile | null>(null);
+  const [showSpinWheel, setShowSpinWheel] = useState(false);
 
   // Check if user needs onboarding
   useEffect(() => {
@@ -426,7 +428,7 @@ const Index = () => {
         )}
       </main>
       
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onCreatePost={() => setShowCreatePost(true)} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onCreatePost={() => setShowCreatePost(true)} onSpinWheel={() => setShowSpinWheel(true)} />
       
       {selectedFriend && <SendChallengeModal friend={selectedFriend} onClose={() => setSelectedFriend(null)} onSend={handleSendChallenge} />}
       {activeChallenge && <CameraModal challenge={activeChallenge} onClose={() => setActiveChallenge(null)} onSubmit={handleSubmitResponse} />}
@@ -440,6 +442,7 @@ const Index = () => {
       {chatWith && <ChatView friend={chatWith} onBack={() => setChatWith(null)} onViewProfile={handleViewProfile} />}
       {showSearch && <UserSearch onChallenge={handleChallenge} onChat={setChatWith} onClose={() => setShowSearch(false)} />}
       {showCreatePost && <CreatePostModal onClose={() => setShowCreatePost(false)} />}
+      {showSpinWheel && <SpinWheelModal onClose={() => setShowSpinWheel(false)} />}
       {showReward && <RewardAnimation reward={showReward} onComplete={() => setShowReward(null)} />}
       {viewingProfile && (
         <UserProfileModal 
