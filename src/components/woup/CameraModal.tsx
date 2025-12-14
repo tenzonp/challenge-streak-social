@@ -5,6 +5,7 @@ import { useCamera } from '@/hooks/useCamera';
 import { useToast } from '@/hooks/use-toast';
 import { Challenge } from '@/hooks/useChallenges';
 import { Profile } from '@/hooks/useProfile';
+import ChallengeCompleteAnimation from './ChallengeCompleteAnimation';
 
 interface CameraModalProps {
   challenge: {
@@ -30,12 +31,13 @@ const CameraModal = ({ challenge, onClose, onSubmit }: CameraModalProps) => {
     uploadPhoto,
   } = useCamera();
 
-  const [step, setStep] = useState<'camera-front' | 'camera-back' | 'preview'>('camera-front');
+  const [step, setStep] = useState<'camera-front' | 'camera-back' | 'preview' | 'complete'>('camera-front');
   const [frontPhoto, setFrontPhoto] = useState<string | null>(null);
   const [backPhoto, setBackPhoto] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [showComplete, setShowComplete] = useState(false);
 
   useEffect(() => {
     initCamera();
@@ -102,21 +104,32 @@ const CameraModal = ({ challenge, onClose, onSubmit }: CameraModalProps) => {
 
       await onSubmit(challenge.id, frontUrl, backUrl, caption || undefined);
       
-      toast({
-        title: "posted! 🎉",
-        description: "streak +1! keep it going 🔥",
-      });
-      onClose();
+      // Show completion animation
+      setShowComplete(true);
     } catch (error) {
       toast({
         title: "upload failed",
         description: "please try again",
         variant: "destructive",
       });
-    } finally {
       setSubmitting(false);
     }
   };
+
+  const handleAnimationComplete = () => {
+    setShowComplete(false);
+    onClose();
+  };
+
+  if (showComplete) {
+    return (
+      <ChallengeCompleteAnimation 
+        challengeText={challenge.challenge_text}
+        fromUser={challenge.from_user?.display_name || 'Friend'}
+        onComplete={handleAnimationComplete}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
