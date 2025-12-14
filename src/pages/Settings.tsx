@@ -2,19 +2,32 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Bell, UserX, Settings2, ChevronRight, 
-  LogOut, Key, User, Loader2, Shield
+  LogOut, Key, User, Loader2, Shield, Trash2, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const SettingsPage = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [profile, setProfile] = useState<{ username: string; display_name: string; avatar_url: string | null } | null>(null);
   const [blockedCount, setBlockedCount] = useState(0);
 
@@ -55,6 +68,40 @@ const SettingsPage = () => {
     toast({ title: 'Signed out successfully' });
   };
 
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      toast({ title: 'Please type DELETE to confirm', variant: 'destructive' });
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account');
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.success) {
+        await signOut();
+        navigate('/auth');
+        toast({ title: 'Account deleted', description: 'Your account has been permanently deleted' });
+      } else {
+        throw new Error(data?.error || 'Failed to delete account');
+      }
+    } catch (err: any) {
+      console.error('Delete account error:', err);
+      toast({ 
+        title: 'Failed to delete account', 
+        description: err.message || 'Please try again later',
+        variant: 'destructive' 
+      });
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmText('');
+    }
+  };
+
   const settingsSections = [
     {
       title: 'Account',
@@ -65,6 +112,8 @@ const SettingsPage = () => {
           description: 'Update your name, bio, and avatar',
           onClick: () => navigate('/'),
           badge: null,
+          color: 'text-primary',
+          bgColor: 'bg-primary/20',
         },
         {
           icon: Key,
@@ -72,6 +121,8 @@ const SettingsPage = () => {
           description: 'Update your password',
           onClick: () => navigate('/update-password'),
           badge: null,
+          color: 'text-primary',
+          bgColor: 'bg-primary/20',
         },
       ],
     },
@@ -84,6 +135,8 @@ const SettingsPage = () => {
           description: 'Manage push notifications and alerts',
           onClick: () => navigate('/notifications'),
           badge: null,
+          color: 'text-blue-500',
+          bgColor: 'bg-blue-500/20',
         },
       ],
     },
@@ -91,18 +144,22 @@ const SettingsPage = () => {
       title: 'Privacy',
       items: [
         {
+          icon: Shield,
+          label: 'Privacy Settings',
+          description: 'Control who can see your content',
+          onClick: () => navigate('/settings/privacy'),
+          badge: null,
+          color: 'text-green-500',
+          bgColor: 'bg-green-500/20',
+        },
+        {
           icon: UserX,
           label: 'Blocked Users',
           description: 'Manage accounts you\'ve blocked',
           onClick: () => navigate('/settings/blocked'),
           badge: blockedCount > 0 ? blockedCount : null,
-        },
-        {
-          icon: Shield,
-          label: 'Privacy Settings',
-          description: 'Control who can see your content',
-          onClick: () => toast({ title: 'Coming soon', description: 'Privacy settings are being built' }),
-          badge: null,
+          color: 'text-orange-500',
+          bgColor: 'bg-orange-500/20',
         },
       ],
     },
@@ -175,8 +232,8 @@ const SettingsPage = () => {
                   onClick={item.onClick}
                   className="w-full flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors text-left active:scale-[0.99]"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center">
-                    <item.icon className="w-5 h-5 text-muted-foreground" />
+                  <div className={`w-10 h-10 rounded-xl ${item.bgColor} flex items-center justify-center`}>
+                    <item.icon className={`w-5 h-5 ${item.color}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium">{item.label}</p>
@@ -201,15 +258,80 @@ const SettingsPage = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
+          className="space-y-3"
         >
           <Button
             variant="outline"
-            className="w-full h-14 gap-3 rounded-2xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="w-full h-14 gap-3 rounded-2xl"
             onClick={handleSignOut}
           >
             <LogOut className="w-5 h-5" />
             Sign Out
           </Button>
+
+          {/* Delete Account */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full h-14 gap-3 rounded-2xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="w-5 h-5" />
+                Delete Account
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="glass border-destructive/30">
+              <AlertDialogHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-12 h-12 rounded-2xl bg-destructive/20 flex items-center justify-center">
+                    <AlertTriangle className="w-6 h-6 text-destructive" />
+                  </div>
+                  <AlertDialogTitle className="text-xl">Delete Account?</AlertDialogTitle>
+                </div>
+                <AlertDialogDescription className="space-y-3">
+                  <p>
+                    This action is <strong className="text-destructive">permanent and cannot be undone</strong>. 
+                    All your data will be deleted including:
+                  </p>
+                  <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                    <li>Your profile and posts</li>
+                    <li>All messages and challenges</li>
+                    <li>Streaks and achievements</li>
+                    <li>Friend connections</li>
+                  </ul>
+                  <div className="pt-2">
+                    <label className="text-sm font-medium">
+                      Type <span className="text-destructive font-bold">DELETE</span> to confirm:
+                    </label>
+                    <input
+                      type="text"
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value.toUpperCase())}
+                      placeholder="Type DELETE"
+                      className="w-full mt-2 p-3 rounded-xl bg-muted/50 border border-border focus:border-destructive outline-none"
+                    />
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDeleteConfirmText('')}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteAccount}
+                  disabled={deleteConfirmText !== 'DELETE' || deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Trash2 className="w-4 h-4 mr-2" />
+                  )}
+                  Delete Forever
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </motion.div>
 
         {/* Version */}
