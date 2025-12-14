@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import UpdatePassword from "./pages/UpdatePassword";
 import NotificationSettings from "./pages/NotificationSettings";
 import NotificationAdmin from "./pages/NotificationAdmin";
 import NotFound from "./pages/NotFound";
@@ -22,6 +23,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/notifications" element={<NotificationSettings />} />
             <Route path="/admin/notifications" element={<NotificationAdmin />} />
             <Route path="*" element={<NotFound />} />
