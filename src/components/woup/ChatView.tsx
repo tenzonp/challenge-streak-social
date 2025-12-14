@@ -97,25 +97,36 @@ const SnapMessage = ({
 }: { 
   message: Message; 
   isMe: boolean; 
-  onView: () => void;
+  onView: () => Promise<void>;
   colorPrimary?: string;
   colorSecondary?: string;
 }) => {
   const [viewing, setViewing] = useState(false);
-  const viewsLeft = message.snap_views_remaining ?? 0;
-  const canView = viewsLeft > 0;
+  const [localViewsLeft, setLocalViewsLeft] = useState(message.snap_views_remaining ?? 0);
+  const canView = localViewsLeft > 0;
 
-  const handleView = () => {
-    if (!canView) return;
+  const handleView = async () => {
+    if (!canView && !isMe) return;
+    
     if (isMe) {
-      // Sender can always view their sent snap
+      // Sender can always view their sent snap without decrementing
       setViewing(true);
       return;
     }
+    
+    // Recipient viewing - decrement views
     setViewing(true);
-    onView();
+    await onView();
+    setLocalViewsLeft(prev => Math.max(0, prev - 1));
+    
+    // Auto-close after 5 seconds
     setTimeout(() => setViewing(false), 5000);
   };
+
+  // Sync with message prop
+  useEffect(() => {
+    setLocalViewsLeft(message.snap_views_remaining ?? 0);
+  }, [message.snap_views_remaining]);
 
   if (viewing && message.media_url) {
     return (
@@ -127,13 +138,14 @@ const SnapMessage = ({
       >
         <img src={message.media_url} alt="Snap" className="max-w-full max-h-full object-contain" />
         <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md text-white text-sm">
-          {isMe ? `${viewsLeft} views left` : `${viewsLeft - 1} views left`}
+          {isMe ? `${localViewsLeft} views left` : `${localViewsLeft} views left`}
         </div>
         <Button
           variant="ghost"
           size="icon"
           className="absolute top-4 left-4 text-white"
           onClick={() => setViewing(false)}
+          type="button"
         >
           <X className="w-6 h-6" />
         </Button>
@@ -143,11 +155,11 @@ const SnapMessage = ({
 
   return (
     <motion.div 
-      whileTap={canView ? { scale: 0.95 } : undefined}
+      whileTap={canView || isMe ? { scale: 0.95 } : undefined}
       onClick={handleView}
       className={cn(
         "relative w-32 h-44 rounded-2xl overflow-hidden cursor-pointer",
-        !canView && "opacity-50"
+        !canView && !isMe && "opacity-50 cursor-not-allowed"
       )}
       style={{ 
         background: isMe 
@@ -165,8 +177,11 @@ const SnapMessage = ({
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
         <Eye className="w-8 h-8 text-white mb-2" />
         <span className="text-white text-sm font-bold">
-          {isMe ? `${viewsLeft} views left` : canView ? 'Tap to view' : 'Expired'}
+          {isMe ? `${localViewsLeft} views left` : canView ? 'Tap to view' : 'Expired'}
         </span>
+        {!isMe && canView && (
+          <span className="text-white/70 text-xs mt-1">{localViewsLeft} views left</span>
+        )}
       </div>
     </motion.div>
   );
@@ -332,6 +347,20 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
       }, () => {
         fetchMessages();
       })
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'messages' 
+      }, () => {
+        fetchMessages();
+      })
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'message_reactions' 
+      }, () => {
+        fetchMessages();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -404,15 +433,25 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
     if (remaining === 0) {
       toast('Snap expired! 💨');
     }
+    // Update local state immediately
+    setMessages(prev => prev.map(m => 
+      m.id === messageId 
+        ? { ...m, snap_views_remaining: remaining ?? 0 }
+        : m
+    ));
   };
 
   const handleDeleteMessage = async (messageId: string) => {
+    // Optimistically remove from UI
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    
     const { error } = await deleteMessage(messageId);
-    if (!error) {
-      setMessages(prev => prev.filter(m => m.id !== messageId));
-      toast.success('Message deleted');
-    } else {
+    if (error) {
+      // Revert on error
+      fetchMessages();
       toast.error('Could not delete message');
+    } else {
+      toast.success('Message deleted');
     }
   };
 
@@ -430,14 +469,35 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
 
   const handleToggleReaction = async (messageId: string, emoji: string) => {
     const msg = messages.find(m => m.id === messageId);
-    const hasReacted = msg?.reactions?.some(r => r.user_id === user?.id && r.emoji === emoji);
+    const existingReaction = msg?.reactions?.find(r => r.user_id === user?.id && r.emoji === emoji);
     
-    if (hasReacted) {
+    if (existingReaction) {
       await removeReaction(messageId, emoji);
+      // Update local state immediately
+      setMessages(prev => prev.map(m => 
+        m.id === messageId 
+          ? { ...m, reactions: (m.reactions || []).filter(r => !(r.user_id === user?.id && r.emoji === emoji)) }
+          : m
+      ));
     } else {
       await addReaction(messageId, emoji);
+      // Update local state immediately
+      setMessages(prev => prev.map(m => 
+        m.id === messageId 
+          ? { 
+              ...m, 
+              reactions: [...(m.reactions || []), { 
+                id: crypto.randomUUID(), 
+                message_id: messageId, 
+                user_id: user!.id, 
+                emoji, 
+                created_at: new Date().toISOString() 
+              }] 
+            }
+          : m
+      ));
     }
-    fetchMessages();
+    setShowReactionPicker(null);
   };
 
   if (isLocked && !unlocked) {
@@ -612,7 +672,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
       <div className="border-b border-border/30 safe-top"
         style={{ background: `linear-gradient(135deg, ${friend.color_primary || '#4ade80'}20, ${friend.color_secondary || '#f472b6'}20)` }}>
         <div className="flex items-center gap-2 p-3">
-          <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0 rounded-full">
+          <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0 rounded-full" type="button">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           
@@ -634,7 +694,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           <div className="flex items-center gap-1">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
+                <Button variant="ghost" size="icon" className="rounded-full" type="button">
                   <MoreVertical className="w-5 h-5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -648,7 +708,7 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => onVideoCall?.(friend)}>
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => onVideoCall?.(friend)} type="button">
               <Video className="w-5 h-5" />
             </Button>
           </div>

@@ -1,21 +1,27 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
-interface PeerConnection {
-  pc: RTCPeerConnection;
-  remoteStream: MediaStream | null;
+interface SignalingMessage {
+  type: 'offer' | 'answer' | 'ice-candidate' | 'call-ended';
+  data: any;
+  from: string;
+  to: string;
 }
 
-export const useVideoCall = (onCallEnded?: () => void) => {
+export const useVideoCall = (partnerId: string, onCallEnded?: () => void) => {
+  const { user } = useAuth();
   const [isInCall, setIsInCall] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
+  const [isReceivingCall, setIsReceivingCall] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
 
   const cleanup = useCallback(() => {
     if (localStream) {
@@ -29,88 +35,128 @@ export const useVideoCall = (onCallEnded?: () => void) => {
     setRemoteStream(null);
     setIsInCall(false);
     setIsCalling(false);
-    onCallEnded?.();
-  }, [localStream, onCallEnded]);
+    setIsReceivingCall(false);
+    iceCandidatesQueue.current = [];
+  }, [localStream]);
 
-  const initializeCall = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 640, height: 480 },
-        audio: true
-      });
-      
-      setLocalStream(stream);
-      
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ]
-      });
-      
-      stream.getTracks().forEach(track => {
-        pc.addTrack(track, stream);
-      });
+  const sendSignal = useCallback(async (type: SignalingMessage['type'], data: any) => {
+    if (!user || !channelRef.current) return;
+    
+    await channelRef.current.send({
+      type: 'broadcast',
+      event: 'signal',
+      payload: {
+        type,
+        data,
+        from: user.id,
+        to: partnerId
+      }
+    });
+  }, [user, partnerId]);
 
-      pc.ontrack = (event) => {
-        setRemoteStream(event.streams[0]);
-      };
+  const createPeerConnection = useCallback(async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: true
+    });
+    
+    setLocalStream(stream);
+    
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+      ]
+    });
+    
+    stream.getTracks().forEach(track => {
+      pc.addTrack(track, stream);
+    });
 
-      pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-          cleanup();
-        }
-      };
+    pc.ontrack = (event) => {
+      console.log('Received remote track:', event.streams[0]);
+      setRemoteStream(event.streams[0]);
+    };
 
-      pcRef.current = pc;
-      return pc;
-    } catch (error) {
-      console.error('Failed to initialize call:', error);
-      throw error;
-    }
-  }, [cleanup]);
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log('Sending ICE candidate');
+        sendSignal('ice-candidate', event.candidate.toJSON());
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('ICE connection state:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'connected') {
+        setIsInCall(true);
+        setIsCalling(false);
+      }
+      if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+        cleanup();
+        onCallEnded?.();
+      }
+    };
+
+    pcRef.current = pc;
+    return pc;
+  }, [cleanup, sendSignal, onCallEnded]);
 
   const startCall = useCallback(async () => {
+    if (!user) return;
+    
     setIsCalling(true);
     
     try {
-      const pc = await initializeCall();
+      const pc = await createPeerConnection();
       
-      // For demo purposes, we'll simulate a connection
-      // In production, you'd use signaling server to exchange offers/answers
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       
-      setIsInCall(true);
-      setIsCalling(false);
+      console.log('Sending offer');
+      await sendSignal('offer', offer);
       
-      return offer;
     } catch (error) {
+      console.error('Failed to start call:', error);
       setIsCalling(false);
-      throw error;
+      cleanup();
     }
-  }, [initializeCall]);
+  }, [user, createPeerConnection, sendSignal, cleanup]);
 
   const answerCall = useCallback(async (offer: RTCSessionDescriptionInit) => {
+    if (!user) return;
+    
     try {
-      const pc = await initializeCall();
+      const pc = await createPeerConnection();
       
-      await pc.setRemoteDescription(offer);
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      
+      // Process queued ICE candidates
+      for (const candidate of iceCandidatesQueue.current) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+      iceCandidatesQueue.current = [];
+      
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       
-      setIsInCall(true);
+      console.log('Sending answer');
+      await sendSignal('answer', answer);
       
-      return answer;
+      setIsInCall(true);
+      setIsReceivingCall(false);
+      
     } catch (error) {
+      console.error('Failed to answer call:', error);
       cleanup();
-      throw error;
     }
-  }, [initializeCall, cleanup]);
+  }, [user, createPeerConnection, sendSignal, cleanup]);
 
   const endCall = useCallback(() => {
+    sendSignal('call-ended', {});
     cleanup();
-  }, [cleanup]);
+    onCallEnded?.();
+  }, [sendSignal, cleanup, onCallEnded]);
 
   const toggleMute = useCallback(() => {
     if (localStream) {
@@ -132,19 +178,72 @@ export const useVideoCall = (onCallEnded?: () => void) => {
     }
   }, [localStream]);
 
+  // Set up signaling channel
   useEffect(() => {
-    return cleanup;
-  }, [cleanup]);
+    if (!user || !partnerId) return;
+
+    const channelId = [user.id, partnerId].sort().join('-');
+    const channel = supabase.channel(`video-call-${channelId}`);
+
+    channel.on('broadcast', { event: 'signal' }, async ({ payload }) => {
+      const signal = payload as SignalingMessage;
+      
+      // Only process messages meant for us
+      if (signal.to !== user.id) return;
+      
+      console.log('Received signal:', signal.type);
+
+      switch (signal.type) {
+        case 'offer':
+          setIsReceivingCall(true);
+          // Store offer and wait for user to accept
+          iceCandidatesQueue.current = [];
+          // Auto-answer for now (you can add UI to accept/reject)
+          await answerCall(signal.data);
+          break;
+          
+        case 'answer':
+          if (pcRef.current) {
+            await pcRef.current.setRemoteDescription(new RTCSessionDescription(signal.data));
+          }
+          break;
+          
+        case 'ice-candidate':
+          if (pcRef.current && pcRef.current.remoteDescription) {
+            await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.data));
+          } else {
+            // Queue candidate if remote description not set yet
+            iceCandidatesQueue.current.push(signal.data);
+          }
+          break;
+          
+        case 'call-ended':
+          cleanup();
+          onCallEnded?.();
+          break;
+      }
+    });
+
+    channel.subscribe((status) => {
+      console.log('Video call channel status:', status);
+    });
+
+    channelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      cleanup();
+    };
+  }, [user, partnerId, answerCall, cleanup, onCallEnded]);
 
   return {
     isInCall,
     isCalling,
+    isReceivingCall,
     localStream,
     remoteStream,
     isMuted,
     isVideoOff,
-    localVideoRef,
-    remoteVideoRef,
     startCall,
     answerCall,
     endCall,
