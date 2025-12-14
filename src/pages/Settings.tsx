@@ -107,16 +107,29 @@ const SettingsPage = () => {
             title: '🎉 Test Notification',
             body: 'Push notifications are working! You\'re all set.',
             tag: 'test-notification',
+            data: { type: 'test' },
           },
         },
       });
 
       if (error) throw error;
 
-      toast({
-        title: 'Test sent!',
-        description: `Sent to ${(data?.webSent || 0) + (data?.fcmSent || 0)} device(s)`,
-      });
+      const webCount = data?.breakdown?.web || 0;
+      const fcmCount = data?.breakdown?.fcm || 0;
+      const total = webCount + fcmCount;
+
+      if (total > 0) {
+        toast({
+          title: 'Test sent!',
+          description: `Sent to ${total} device(s): ${fcmCount} native, ${webCount} web`,
+        });
+      } else {
+        toast({
+          title: 'No devices found',
+          description: 'Enable notifications first in your browser or app',
+          variant: 'destructive',
+        });
+      }
     } catch (err: any) {
       console.error('Test notification error:', err);
       toast({

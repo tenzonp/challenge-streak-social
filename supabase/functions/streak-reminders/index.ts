@@ -13,6 +13,50 @@ interface NotificationPayload {
   data?: Record<string, unknown>;
 }
 
+// Send FCM notification to native apps
+async function sendFCMNotification(
+  token: string,
+  payload: NotificationPayload,
+  fcmServerKey: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log('[FCM] Sending to token:', token.substring(0, 20) + '...');
+    
+    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `key=${fcmServerKey}`,
+      },
+      body: JSON.stringify({
+        to: token,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          icon: payload.icon || '/favicon.ico',
+          sound: 'default',
+        },
+        data: payload.data || {},
+        priority: 'high',
+      }),
+    });
+
+    const result = await response.json();
+    console.log('[FCM] Response:', JSON.stringify(result));
+
+    if (result.success === 1) {
+      return { success: true };
+    } else if (result.failure === 1 && result.results?.[0]?.error) {
+      return { success: false, error: result.results[0].error };
+    }
+    
+    return { success: response.ok };
+  } catch (error) {
+    console.error('[FCM] Error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown FCM error' };
+  }
+}
+
 // Simple JWT creation for VAPID
 async function createVapidJwt(audience: string, subject: string, privateKeyBase64: string): Promise<string> {
   const header = { alg: 'ES256', typ: 'JWT' };
@@ -54,65 +98,96 @@ async function sendPushToUser(
   supabase: any,
   userId: string,
   payload: NotificationPayload,
-  vapidPublicKey: string,
-  vapidPrivateKey: string
-): Promise<{ success: boolean; error?: string }> {
+  vapidPublicKey: string | undefined,
+  vapidPrivateKey: string | undefined,
+  fcmServerKey: string | undefined
+): Promise<{ success: boolean; webSent: number; fcmSent: number; error?: string }> {
   try {
-    // Get user's push subscriptions
-    const { data: subscriptions, error: subError } = await supabase
-      .from('push_subscriptions')
-      .select('*')
-      .eq('user_id', userId);
+    let webSent = 0;
+    let fcmSent = 0;
 
-    if (subError || !subscriptions?.length) {
-      return { success: false, error: 'No subscriptions' };
-    }
+    // Send to FCM tokens (native apps) first
+    if (fcmServerKey) {
+      const { data: fcmTokens, error: fcmError } = await supabase
+        .from('fcm_tokens')
+        .select('*')
+        .eq('user_id', userId);
 
-    let successCount = 0;
-    for (const sub of subscriptions) {
-      try {
-        const endpointUrl = new URL(sub.endpoint);
-        const audience = endpointUrl.origin;
-        const jwt = await createVapidJwt(audience, 'mailto:noreply@woup.app', vapidPrivateKey);
-
-        const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
-
-        const response = await fetch(sub.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/octet-stream',
-            'Content-Encoding': 'aes128gcm',
-            'TTL': '86400',
-            'Authorization': `vapid t=${jwt}, k=${vapidPublicKey}`,
-            'Urgency': 'normal',
-          },
-          body: payloadBytes,
-        });
-
-        if (response.ok) {
-          successCount++;
-        } else if (response.status === 410 || response.status === 404) {
-          // Clean up expired subscription
-          await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+      if (!fcmError && fcmTokens?.length) {
+        console.log('[Streak] Found', fcmTokens.length, 'FCM tokens for user');
+        
+        for (const tokenRecord of fcmTokens) {
+          const result = await sendFCMNotification(tokenRecord.token, payload, fcmServerKey);
+          if (result.success) {
+            fcmSent++;
+          } else if (result.error === 'NotRegistered' || result.error === 'InvalidRegistration') {
+            // Clean up invalid token
+            console.log('[Streak] Removing invalid FCM token');
+            await supabase.from('fcm_tokens').delete().eq('id', tokenRecord.id);
+          }
         }
-      } catch (err) {
-        console.error('[Streak] Error sending to subscription:', err);
       }
     }
 
+    // Send to web push subscriptions
+    if (vapidPublicKey && vapidPrivateKey) {
+      const { data: subscriptions, error: subError } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (!subError && subscriptions?.length) {
+        console.log('[Streak] Found', subscriptions.length, 'web push subscriptions');
+        
+        for (const sub of subscriptions) {
+          try {
+            const endpointUrl = new URL(sub.endpoint);
+            const audience = endpointUrl.origin;
+            const jwt = await createVapidJwt(audience, 'mailto:noreply@woup.app', vapidPrivateKey);
+
+            const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+
+            const response = await fetch(sub.endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/octet-stream',
+                'Content-Encoding': 'aes128gcm',
+                'TTL': '86400',
+                'Authorization': `vapid t=${jwt}, k=${vapidPublicKey}`,
+                'Urgency': 'normal',
+              },
+              body: payloadBytes,
+            });
+
+            if (response.ok) {
+              webSent++;
+            } else if (response.status === 410 || response.status === 404) {
+              console.log('[Streak] Removing expired web subscription');
+              await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+            }
+          } catch (err) {
+            console.error('[Streak] Error sending to web subscription:', err);
+          }
+        }
+      }
+    }
+
+    const totalSent = webSent + fcmSent;
+    
     // Log notification
     await supabase.from('notification_logs').insert({
       user_id: userId,
       notification_type: 'streak_reminder',
       title: payload.title,
       body: payload.body,
-      status: successCount > 0 ? 'sent' : 'failed',
+      status: totalSent > 0 ? 'sent' : 'failed',
     });
 
-    return { success: successCount > 0 };
+    console.log('[Streak] Sent', webSent, 'web +', fcmSent, 'FCM =', totalSent, 'total');
+    return { success: totalSent > 0, webSent, fcmSent };
   } catch (error) {
     console.error('[Streak] Error sending push:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    return { success: false, webSent: 0, fcmSent: 0, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
 
@@ -126,10 +201,11 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
+    const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
 
-    if (!vapidPublicKey || !vapidPrivateKey) {
+    if (!vapidPublicKey && !fcmServerKey) {
       return new Response(
-        JSON.stringify({ error: 'VAPID keys not configured' }),
+        JSON.stringify({ error: 'Neither VAPID keys nor FCM_SERVER_KEY configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -138,14 +214,12 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'streak_reminders';
 
-    console.log('[Streak] Running action:', action);
+    console.log('[Streak] Running action:', action, 'FCM enabled:', !!fcmServerKey);
 
     if (action === 'streak_reminders') {
-      // Get users with active streaks who haven't posted today
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Get all users with streaks
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('user_id, display_name, streak, longest_streak')
@@ -161,8 +235,10 @@ serve(async (req) => {
 
       console.log('[Streak] Found', profiles?.length || 0, 'users with streaks');
 
-      // Check notification preferences
       let sentCount = 0;
+      let fcmTotal = 0;
+      let webTotal = 0;
+      
       for (const profile of profiles || []) {
         const { data: prefs } = await supabase
           .from('notification_preferences')
@@ -174,7 +250,6 @@ serve(async (req) => {
           continue;
         }
 
-        // Check if user completed a challenge today
         const { data: todayResponses } = await supabase
           .from('challenge_responses')
           .select('id')
@@ -183,29 +258,31 @@ serve(async (req) => {
           .limit(1);
 
         if (todayResponses?.length) {
-          continue; // Already posted today
+          continue;
         }
 
-        // Send streak reminder
         const payload: NotificationPayload = {
           title: `🔥 Don't lose your ${profile.streak}-day streak!`,
           body: `Complete a challenge to keep your streak alive! You're ${profile.longest_streak - profile.streak + 1} days from your best!`,
           data: { type: 'streak_reminder', streak: profile.streak },
         };
 
-        const result = await sendPushToUser(supabase, profile.user_id, payload, vapidPublicKey, vapidPrivateKey);
-        if (result.success) sentCount++;
+        const result = await sendPushToUser(supabase, profile.user_id, payload, vapidPublicKey, vapidPrivateKey, fcmServerKey);
+        if (result.success) {
+          sentCount++;
+          fcmTotal += result.fcmSent;
+          webTotal += result.webSent;
+        }
       }
 
-      console.log('[Streak] Sent', sentCount, 'streak reminders');
+      console.log('[Streak] Sent', sentCount, 'streak reminders (', webTotal, 'web,', fcmTotal, 'FCM)');
       return new Response(
-        JSON.stringify({ success: true, sent: sentCount }),
+        JSON.stringify({ success: true, sent: sentCount, webSent: webTotal, fcmSent: fcmTotal }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (action === 'badge_reminders') {
-      // Find users close to earning new badges
       const badgeMilestones = [3, 7, 14, 30, 50, 100];
       
       const { data: profiles } = await supabase
@@ -213,8 +290,10 @@ serve(async (req) => {
         .select('user_id, display_name, streak');
 
       let sentCount = 0;
+      let fcmTotal = 0;
+      let webTotal = 0;
+      
       for (const profile of profiles || []) {
-        // Check if user is 1-2 days away from a milestone
         const nextMilestone = badgeMilestones.find(m => m > profile.streak);
         if (!nextMilestone || nextMilestone - profile.streak > 2) continue;
 
@@ -225,19 +304,22 @@ serve(async (req) => {
           data: { type: 'badge_reminder', nextMilestone },
         };
 
-        const result = await sendPushToUser(supabase, profile.user_id, payload, vapidPublicKey, vapidPrivateKey);
-        if (result.success) sentCount++;
+        const result = await sendPushToUser(supabase, profile.user_id, payload, vapidPublicKey, vapidPrivateKey, fcmServerKey);
+        if (result.success) {
+          sentCount++;
+          fcmTotal += result.fcmSent;
+          webTotal += result.webSent;
+        }
       }
 
       console.log('[Streak] Sent', sentCount, 'badge reminders');
       return new Response(
-        JSON.stringify({ success: true, sent: sentCount }),
+        JSON.stringify({ success: true, sent: sentCount, webSent: webTotal, fcmSent: fcmTotal }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (action === 'broadcast') {
-      // Send to all users or specific users
       const title = body.title as string;
       const messageBody = body.body as string;
       const userIds = body.userIds as string[] | undefined;
@@ -253,25 +335,40 @@ serve(async (req) => {
       let targetUsers: string[] = userIds || [];
 
       if (!targetUsers?.length) {
-        // Get all users with push subscriptions
-        const { data: subs } = await supabase
+        // Get all users with either push subscriptions or FCM tokens
+        const { data: webSubs } = await supabase
           .from('push_subscriptions')
           .select('user_id');
         
-        targetUsers = [...new Set(subs?.map((s: any) => s.user_id) || [])];
+        const { data: fcmTokens } = await supabase
+          .from('fcm_tokens')
+          .select('user_id');
+        
+        const allUserIds = [
+          ...(webSubs?.map((s: any) => s.user_id) || []),
+          ...(fcmTokens?.map((t: any) => t.user_id) || [])
+        ];
+        targetUsers = [...new Set(allUserIds)];
       }
 
       console.log('[Broadcast] Sending to', targetUsers.length, 'users');
 
       let sentCount = 0;
+      let fcmTotal = 0;
+      let webTotal = 0;
+      
       for (const userId of targetUsers) {
         const payload: NotificationPayload = { title, body: messageBody, data: { type: broadcastNotificationType } };
-        const result = await sendPushToUser(supabase, userId, payload, vapidPublicKey, vapidPrivateKey);
-        if (result.success) sentCount++;
+        const result = await sendPushToUser(supabase, userId, payload, vapidPublicKey, vapidPrivateKey, fcmServerKey);
+        if (result.success) {
+          sentCount++;
+          fcmTotal += result.fcmSent;
+          webTotal += result.webSent;
+        }
       }
 
       return new Response(
-        JSON.stringify({ success: true, sent: sentCount, total: targetUsers.length }),
+        JSON.stringify({ success: true, sent: sentCount, total: targetUsers.length, webSent: webTotal, fcmSent: fcmTotal }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -290,7 +387,7 @@ serve(async (req) => {
       }
 
       const payload: NotificationPayload = { title, body: messageBody, data: { type: userNotificationType } };
-      const result = await sendPushToUser(supabase, userId, payload, vapidPublicKey, vapidPrivateKey);
+      const result = await sendPushToUser(supabase, userId, payload, vapidPublicKey, vapidPrivateKey, fcmServerKey);
 
       return new Response(
         JSON.stringify(result),
