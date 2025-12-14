@@ -26,6 +26,17 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
       const viewedSet = new Set((viewed || []).map((v: any) => v.response_id));
       setViewedIds(viewedSet);
 
+      // Fetch blocked users to exclude from feed
+      const { data: blocked } = await supabase
+        .from('friendships')
+        .select('user_id, friend_id, status')
+        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
+        .eq('status', 'blocked');
+
+      const blockedIds = (blocked || [])
+        .map(b => (b.user_id === user.id ? b.friend_id : b.user_id))
+        .filter(id => id !== user.id);
+
       // Fetch recent likes for AI context
       const { data: recentReactions } = await supabase
         .from('reactions')
@@ -51,6 +62,10 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
         `)
         .order('created_at', { ascending: false })
         .limit(50);
+
+      if (blockedIds.length > 0) {
+        query = query.not('user_id', 'in', `(${blockedIds.join(',')})`);
+      }
 
       // For friends feed, filter by friends
       if (feedType === 'friends') {
