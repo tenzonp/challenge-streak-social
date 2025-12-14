@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, Edit2, LogOut, Trophy, ChevronRight, Lock, Bookmark, Users, UserX, Settings, Copy, Check } from 'lucide-react';
+import { Flame, Edit2, LogOut, Trophy, ChevronRight, Lock, Bookmark, Users, UserX, Settings, Copy, Check, Grid3X3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,9 +23,10 @@ interface ProfileCardProps {
   onShowFriends: () => void;
   onViewUserProfile?: (user: Profile) => void;
   onViewPost?: (post: ChallengeResponse, user: Profile) => void;
+  onViewAllPosts?: () => void;
 }
 
-const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFriends, onViewUserProfile, onViewPost }: ProfileCardProps) => {
+const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFriends, onViewUserProfile, onViewPost, onViewAllPosts }: ProfileCardProps) => {
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
   const { getClaimedBadges, getNextMilestone } = useStreakRewards();
@@ -281,7 +282,20 @@ const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFr
       {/* Posts Grid */}
       {(userResponses.length > 0 || userPosts.length > 0) && (
         <div className="glass rounded-2xl p-4">
-          <p className="text-xs text-muted-foreground mb-3">posts</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-muted-foreground">posts</p>
+            {userResponses.length > 6 && onViewAllPosts && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-xs gap-1 h-7"
+                onClick={onViewAllPosts}
+              >
+                <Grid3X3 className="w-3 h-3" />
+                View All
+              </Button>
+            )}
+          </div>
           <div className="grid grid-cols-3 gap-2">
             {userResponses.slice(0, 6).map(response => (
               <button 

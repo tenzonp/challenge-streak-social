@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Flame, Music, Trophy, Zap, MessageCircle, UserPlus, Users, Clock, Check } from 'lucide-react';
+import { X, Flame, Music, Trophy, Zap, MessageCircle, UserPlus, Users, Clock, Check, Grid3X3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { usePosts, Post } from '@/hooks/usePosts';
@@ -13,9 +13,11 @@ interface UserProfileModalProps {
   onClose: () => void;
   onChat: (user: Profile) => void;
   onChallenge: (userId: string) => void;
+  onViewPost?: (post: ChallengeResponse, user: Profile) => void;
+  onViewAllPosts?: (user: Profile) => void;
 }
 
-const UserProfileModal = ({ user, onClose, onChat, onChallenge }: UserProfileModalProps) => {
+const UserProfileModal = ({ user, onClose, onChat, onChallenge, onViewPost, onViewAllPosts }: UserProfileModalProps) => {
   const { getUserPosts } = usePosts();
   const { sendFriendRequest, hasSentRequest, isFriend, cancelFriendRequest } = useFriends();
   const { toast } = useToast();
@@ -203,15 +205,35 @@ const UserProfileModal = ({ user, onClose, onChat, onChallenge }: UserProfileMod
           {/* Posts Grid */}
           {(userResponses.length > 0 || userPosts.length > 0) && (
             <div className="mb-4">
-              <p className="text-xs text-muted-foreground mb-3">posts</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-muted-foreground">posts</p>
+                {userResponses.length > 9 && onViewAllPosts && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-xs gap-1 h-7"
+                    onClick={() => onViewAllPosts(user)}
+                  >
+                    <Grid3X3 className="w-3 h-3" />
+                    View All
+                  </Button>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {userResponses.slice(0, 9).map(response => (
-                  <div key={response.id} className="aspect-square rounded-xl overflow-hidden">
+                  <button 
+                    key={response.id} 
+                    className="aspect-square rounded-xl overflow-hidden relative group"
+                    onClick={() => onViewPost?.(response, user)}
+                  >
                     <img 
                       src={response.back_photo_url} 
-                      className="w-full h-full object-cover hover:scale-105 transition-transform"
+                      className="w-full h-full object-cover transition-transform group-hover:scale-110"
                     />
-                  </div>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                      <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-bold transition-opacity">View</span>
+                    </div>
+                  </button>
                 ))}
                 {userPosts.slice(0, Math.max(0, 9 - userResponses.length)).map(post => (
                   post.image_url && (
