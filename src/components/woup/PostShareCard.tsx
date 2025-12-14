@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { Download, Share2, X, Check } from 'lucide-react';
+import { Download, Share2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { saveImageToGallery } from '@/utils/nativeDownload';
 
 interface PostShareCardProps {
   post: {
@@ -158,38 +159,27 @@ const PostShareCard = ({ post, onClose }: PostShareCardProps) => {
     if (!generatedImage) return;
 
     try {
-      // Convert base64 to blob
-      const response = await fetch(generatedImage);
-      const blob = await response.blob();
-
-      // Check if share API is available with files
-      if (navigator.canShare && navigator.canShare({ files: [new File([blob], 'woup-post.jpg', { type: 'image/jpeg' })] })) {
-        await navigator.share({
-          files: [new File([blob], 'woup-post.jpg', { type: 'image/jpeg' })],
-          title: 'Woup Post',
-          text: post.caption || 'Check out my woup! ✨',
-        });
-        toast.success('Shared successfully! 🎉');
-      } else {
-        // Fallback: download the image
-        const link = document.createElement('a');
-        link.href = generatedImage;
-        link.download = `woup-${post.id.slice(0, 8)}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast.success('Saved to downloads! 📸');
+      const filename = `woup-${post.id.slice(0, 8)}.png`;
+      
+      // Try native save first, then web share, then download
+      const saved = await saveImageToGallery(generatedImage, filename);
+      
+      if (!saved) {
+        // Fallback to web share API
+        const response = await fetch(generatedImage);
+        const blob = await response.blob();
+        
+        if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'image/png' })] })) {
+          await navigator.share({
+            files: [new File([blob], filename, { type: 'image/png' })],
+            title: 'Woup Post',
+            text: post.caption || 'Check out my woup!',
+          });
+        }
       }
     } catch (error) {
       console.error('Share error:', error);
-      // Fallback download
-      const link = document.createElement('a');
-      link.href = generatedImage;
-      link.download = `woup-${post.id.slice(0, 8)}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success('Saved to downloads! 📸');
+      toast.error('Failed to save');
     }
   };
 

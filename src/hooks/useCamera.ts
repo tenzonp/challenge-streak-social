@@ -1,15 +1,27 @@
 import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { Capacitor } from '@capacitor/core';
+import { Camera, CameraResultType, CameraSource, CameraDirection } from '@capacitor/camera';
 
 export const useCamera = () => {
   const { user } = useAuth();
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const isNative = Capacitor.isNativePlatform();
+
   const startCamera = useCallback(async (mode: 'user' | 'environment' = 'user') => {
+    if (isNative) {
+      // For native, we don't need to start a stream - we'll use Camera.getPhoto
+      setFacingMode(mode);
+      setStream({} as MediaStream); // Dummy to indicate camera is "ready"
+      return {} as MediaStream;
+    }
+
     try {
       // Stop existing stream
       if (stream) {
@@ -37,21 +49,30 @@ export const useCamera = () => {
       console.error('Error accessing camera:', error);
       throw error;
     }
-  }, [stream]);
+  }, [stream, isNative]);
 
   const stopCamera = useCallback(() => {
-    if (stream) {
+    if (stream && !isNative) {
       stream.getTracks().forEach(track => track.stop());
-      setStream(null);
     }
-  }, [stream]);
+    setStream(null);
+    setCapturedPhoto(null);
+  }, [stream, isNative]);
 
   const switchCamera = useCallback(async () => {
     const newMode = facingMode === 'user' ? 'environment' : 'user';
-    await startCamera(newMode);
-  }, [facingMode, startCamera]);
+    setFacingMode(newMode);
+    if (!isNative) {
+      await startCamera(newMode);
+    }
+  }, [facingMode, startCamera, isNative]);
 
   const capturePhoto = useCallback((): string | null => {
+    if (isNative) {
+      // For native, return the previously captured photo
+      return capturedPhoto;
+    }
+
     if (!videoRef.current || !canvasRef.current) return null;
 
     const video = videoRef.current;
@@ -72,7 +93,32 @@ export const useCamera = () => {
     ctx.drawImage(video, 0, 0);
     
     return canvas.toDataURL('image/jpeg', 0.8);
-  }, [facingMode]);
+  }, [facingMode, isNative, capturedPhoto]);
+
+  // Native camera capture using Capacitor
+  const captureNativePhoto = useCallback(async (): Promise<string | null> => {
+    if (!isNative) return null;
+
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        direction: facingMode === 'user' ? CameraDirection.Front : CameraDirection.Rear,
+        correctOrientation: true,
+      });
+
+      if (photo.dataUrl) {
+        setCapturedPhoto(photo.dataUrl);
+        return photo.dataUrl;
+      }
+      return null;
+    } catch (error) {
+      console.error('Native camera error:', error);
+      throw error;
+    }
+  }, [isNative, facingMode]);
 
   const uploadPhoto = async (dataUrl: string, photoType: 'front' | 'back'): Promise<string | null> => {
     if (!user) return null;
@@ -115,6 +161,8 @@ export const useCamera = () => {
     stopCamera,
     switchCamera,
     capturePhoto,
+    captureNativePhoto,
     uploadPhoto,
+    isNative,
   };
 };
