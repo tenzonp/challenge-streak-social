@@ -118,6 +118,13 @@ export const useChallenges = () => {
   ) => {
     if (!user) return { error: new Error('Not authenticated') };
 
+    // Get challenge details for notification
+    const { data: challengeData } = await supabase
+      .from('challenges')
+      .select('from_user_id, challenge_text, from_user:profiles!challenges_from_user_id_fkey(display_name)')
+      .eq('id', challengeId)
+      .single();
+
     const { error } = await supabase
       .from('challenge_responses')
       .insert({
@@ -130,6 +137,29 @@ export const useChallenges = () => {
 
     if (!error) {
       fetchChallenges();
+      
+      // Send notification to challenge sender
+      if (challengeData?.from_user_id) {
+        try {
+          // Get current user's profile for display name
+          const { data: currentUserProfile } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('user_id', user.id)
+            .single();
+          
+          await supabase.functions.invoke('send-notification', {
+            body: {
+              userId: challengeData.from_user_id,
+              title: 'Challenge Completed! 🎉',
+              body: `${currentUserProfile?.display_name || 'Someone'} completed your challenge: "${challengeData.challenge_text}"`,
+              type: 'challenge_complete'
+            }
+          });
+        } catch (err) {
+          console.log('Failed to send completion notification:', err);
+        }
+      }
     }
 
     return { error };
