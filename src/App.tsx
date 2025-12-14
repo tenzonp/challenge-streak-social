@@ -19,26 +19,33 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/update-password" element={<UpdatePassword />} />
-            <Route path="/notifications" element={<NotificationSettings />} />
-            <Route path="/admin/notifications" element={<NotificationAdmin />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/settings/blocked" element={<BlockedUsers />} />
-            <Route path="/settings/privacy" element={<PrivacySettings />} />
-            <Route path="/invite" element={<Invite />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          {/* Public route - no auth required */}
+          <Route path="/invite" element={<Invite />} />
+          
+          {/* Auth-protected routes */}
+          <Route path="/*" element={
+            <AuthProvider>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/update-password" element={<UpdatePassword />} />
+                <Route path="/notifications" element={<NotificationSettings />} />
+                <Route path="/admin/notifications" element={<NotificationAdmin />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/settings/blocked" element={<BlockedUsers />} />
+                <Route path="/settings/privacy" element={<PrivacySettings />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
+          } />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
   </QueryClientProvider>
 );
 
