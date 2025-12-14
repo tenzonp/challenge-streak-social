@@ -330,7 +330,13 @@ const NotificationSettings = () => {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
         <div className="container mx-auto px-4 h-16 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate('/settings')}
+            className="rounded-full"
+            type="button"
+          >
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <h1 className="text-xl font-bold">Notifications</h1>
