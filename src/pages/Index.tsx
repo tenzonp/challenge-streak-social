@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import Header from '@/components/woup/Header';
 import BottomNav from '@/components/woup/BottomNav';
 import ChallengeCard from '@/components/woup/ChallengeCard';
@@ -39,8 +39,9 @@ import { useChallengeExpiry } from '@/hooks/useChallengeExpiry';
 import { useStreakRewards } from '@/hooks/useStreakRewards';
 import { useCompetitions } from '@/hooks/useCompetitions';
 import { useAchievements } from '@/hooks/useAchievements';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, Zap, MessageCircle, Loader2, Search, Users, Globe, Trophy } from 'lucide-react';
+import { Loader2, Search, Users, Globe, Trophy, RefreshCw, MessageCircle, Zap, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
@@ -61,7 +62,7 @@ const Index = () => {
   const { profile, loading: profileLoading, updateProfile } = useProfile();
   const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
   const [feedTab, setFeedTab] = useState<FeedTab>('friends');
-  const { posts, addReaction, markAsViewed, loading: feedLoading } = useAIFeed(feedTab);
+  const { posts, addReaction, markAsViewed, loading: feedLoading, refetch: refetchFeed } = useAIFeed(feedTab);
   const { 
     friends, 
     topFriends, 
@@ -100,7 +101,15 @@ const Index = () => {
   const [showAllPosts, setShowAllPosts] = useState<Profile | null>(null);
   const [showSpinWheel, setShowSpinWheel] = useState(false);
 
-  // Check if user needs onboarding
+  // Pull to refresh
+  const handleRefresh = useCallback(async () => {
+    await refetchFeed();
+  }, [refetchFeed]);
+
+  const { isRefreshing, pullDistance, handlers } = usePullToRefresh({
+    onRefresh: handleRefresh,
+    threshold: 80,
+  });
   useEffect(() => {
     if (profile && !profile.has_completed_onboarding) {
       setShowOnboarding(true);
@@ -206,7 +215,10 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background pb-24 pt-16 sm:pt-20">
+    <div 
+      className="min-h-[100dvh] bg-background pb-24 pt-16 sm:pt-20"
+      {...handlers}
+    >
       <Header 
         onProfileClick={() => setActiveTab('profile')} 
         pendingCount={pendingChallenges.length}
@@ -215,40 +227,52 @@ const Index = () => {
         onMessagesClick={() => setShowChatsList(true)}
         onFriendRequestsClick={() => setShowFriendRequests(true)}
       />
+
+      {/* Pull to refresh indicator */}
+      {(pullDistance > 0 || isRefreshing) && activeTab === 'feed' && (
+        <div 
+          className="fixed top-16 left-0 right-0 flex justify-center z-40 pull-indicator"
+          style={{ transform: `translateY(${Math.min(pullDistance, 60)}px)` }}
+        >
+          <div className="bg-card border border-border rounded-full p-2 shadow-lg">
+            <RefreshCw className={`w-5 h-5 text-primary ${isRefreshing ? 'animate-spin' : ''}`} />
+          </div>
+        </div>
+      )}
       
       <main className="container mx-auto px-3 sm:px-4">
         {activeTab === 'feed' && (
-          <div className="space-y-6">
-            {/* Feed Tabs */}
+          <div className="space-y-5">
+            {/* Feed Tabs - cleaner */}
             <div className="flex gap-2">
               <button
                 onClick={() => setFeedTab('friends')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm transition-all ${
                   feedTab === 'friends' 
-                    ? 'gradient-primary text-primary-foreground shadow-neon-green' 
-                    : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50'
                 }`}
               >
                 <Users className="w-4 h-4" /> Friends
               </button>
               <button
                 onClick={() => setFeedTab('global')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm transition-all ${
                   feedTab === 'global' 
-                    ? 'gradient-accent text-accent-foreground shadow-neon-cyan' 
-                    : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                    ? 'bg-accent text-accent-foreground' 
+                    : 'bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50'
                 }`}
               >
                 <Globe className="w-4 h-4" /> Global
               </button>
             </div>
 
-            {/* Competitions */}
+            {/* Competitions - minimal */}
             {activeCompetitions.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <Trophy className="w-5 h-5 text-neon-yellow" />
-                  <h2 className="font-bold text-lg">🏆 Active Competition</h2>
+                  <Trophy className="w-4 h-4 text-neon-yellow" />
+                  <h2 className="font-semibold text-sm text-muted-foreground">Active Competition</h2>
                 </div>
                 <CompetitionCard 
                   competition={activeCompetitions[0]}
@@ -260,17 +284,16 @@ const Index = () => {
               </section>
             )}
 
-            {/* HIGHLIGHTED: Pending Challenges */}
+            {/* Pending Challenges - cleaner */}
             {pendingChallenges.length > 0 && (
-              <section className="relative">
-                <div className="flex items-center gap-2 mb-4">
-                  <Zap className="w-6 h-6 text-neon-pink" />
-                  <h2 className="text-xl font-black text-gradient-challenge">⚡ challenges waiting!</h2>
-                  <span className="px-3 py-1 rounded-full gradient-challenge text-xs font-black text-primary-foreground animate-bounce">
-                    {pendingChallenges.length} NEW
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm font-semibold text-muted-foreground">Challenges</span>
+                  <span className="px-2 py-0.5 rounded-full bg-secondary/20 text-secondary text-xs font-semibold">
+                    {pendingChallenges.length}
                   </span>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {pendingChallenges.map(challenge => (
                     <ChallengeCard key={challenge.id} challenge={challenge} onRespond={handleRespond} />
                   ))}
@@ -278,18 +301,21 @@ const Index = () => {
               </section>
             )}
             
+            {/* Feed section - minimal */}
             <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-5 h-5 text-neon-cyan" />
-                <h2 className="text-lg font-bold">{feedTab === 'friends' ? '✨ friends feed' : '🌍 global feed'}</h2>
-              </div>
-              {posts.length === 0 ? (
-                <div className="glass-strong rounded-3xl p-8 text-center">
-                  <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">no posts yet! be the first 🚀</p>
+              <p className="text-xs text-muted-foreground mb-4">
+                {feedTab === 'friends' ? 'From your friends' : 'Discover new people'}
+              </p>
+              {feedLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="glass rounded-2xl p-8 text-center">
+                  <p className="text-muted-foreground text-sm">No posts yet</p>
                 </div>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {posts.map((post, i) => (
                     <ViralPostCard 
                       key={post.id} 
