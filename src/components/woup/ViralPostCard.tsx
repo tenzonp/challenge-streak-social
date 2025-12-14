@@ -169,18 +169,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
                 <span className="font-bold">{post.user?.display_name || 'User'}</span>
                 <span className="text-muted-foreground text-sm">@{post.user?.username}</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{formatTime(post.created_at)}</span>
-                {post.challenge && (
-                  <>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-primary" />
-                      {post.challenge.challenge_text.slice(0, 20)}...
-                    </span>
-                  </>
-                )}
-              </div>
+              <span className="text-xs text-muted-foreground">{formatTime(post.created_at)}</span>
             </div>
           </button>
 
@@ -211,6 +200,33 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
             </DropdownMenu>
           )}
         </div>
+
+        {/* Challenge Banner - Main Feature */}
+        {post.challenge && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mx-4 mb-3 px-4 py-3 rounded-2xl gradient-challenge relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-black/20" />
+            <div className="relative flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-white/70 font-bold">Challenge</p>
+                <p className="text-white font-bold text-sm leading-tight truncate">{post.challenge.challenge_text}</p>
+              </div>
+              <motion.div
+                animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="text-2xl"
+              >
+                ⚡
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Flagged indicator */}
         {isFlagged && (

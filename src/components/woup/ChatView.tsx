@@ -620,6 +620,24 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
         await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap', undefined, undefined, replyTo?.id);
       } else {
         const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(fileName);
+        
+        // Moderate snap image before sending
+        try {
+          const { data: moderationData } = await supabase.functions.invoke('content-moderation', {
+            body: { imageUrl: urlData.publicUrl, type: 'image' }
+          });
+          
+          if (moderationData && !moderationData.isClean) {
+            await supabase.storage.from('chat-media').remove([fileName]);
+            toast.error('Snap contains inappropriate content');
+            setSnapImage(null);
+            setReplyTo(null);
+            return;
+          }
+        } catch (err) {
+          console.log('Snap moderation check failed, proceeding:', err);
+        }
+        
         await sendMessage(friend.user_id, '📸 Sent a snap!', 'snap', urlData.publicUrl, undefined, replyTo?.id);
       }
     } catch {
@@ -753,6 +771,26 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
       }
 
       const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(fileName);
+      
+      // Moderate images before sending
+      if (type === 'image') {
+        try {
+          const { data: moderationData } = await supabase.functions.invoke('content-moderation', {
+            body: { imageUrl: urlData.publicUrl, type: 'image' }
+          });
+          
+          if (moderationData && !moderationData.isClean) {
+            // Delete the uploaded file
+            await supabase.storage.from('chat-media').remove([fileName]);
+            toast.error('Image contains inappropriate content');
+            setSending(false);
+            setShowAttachMenu(false);
+            return;
+          }
+        } catch (err) {
+          console.log('Image moderation check failed, proceeding:', err);
+        }
+      }
       
       const emoji = type === 'image' ? '🖼️' : type === 'video' ? '🎬' : '📄';
       await sendMessage(friend.user_id, `${emoji} ${file.name}`, type, urlData.publicUrl, undefined, replyTo?.id, allowSaveMedia);
