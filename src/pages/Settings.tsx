@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Bell, UserX, Settings2, ChevronRight, 
-  LogOut, Key, User, Loader2, Shield, Trash2, AlertTriangle
+  LogOut, Key, Loader2, Shield, Trash2, AlertTriangle, 
+  Send, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,6 +31,9 @@ const SettingsPage = () => {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [profile, setProfile] = useState<{ username: string; display_name: string; avatar_url: string | null } | null>(null);
   const [blockedCount, setBlockedCount] = useState(0);
+  const [sendingTestNotification, setSendingTestNotification] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -60,6 +64,69 @@ const SettingsPage = () => {
     }
     setBlockedCount(blockedRes.count || 0);
     setLoading(false);
+  };
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+    toast({ title: 'Refreshed' });
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+    if (scrollTop === 0) {
+      (e.currentTarget as HTMLElement).dataset.startY = String(e.touches[0].clientY);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const startY = parseFloat((e.currentTarget as HTMLElement).dataset.startY || '0');
+    if (!startY) return;
+    const currentY = e.touches[0].clientY;
+    const distance = Math.max(0, Math.min(100, currentY - startY));
+    setPullDistance(distance);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (pullDistance > 60 && !refreshing) {
+      handleRefresh();
+    }
+    setPullDistance(0);
+  }, [pullDistance, refreshing, handleRefresh]);
+
+  const handleTestNotification = async () => {
+    if (!user) return;
+    setSendingTestNotification(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('push-notifications', {
+        body: {
+          action: 'send',
+          userId: user.id,
+          payload: {
+            title: '🎉 Test Notification',
+            body: 'Push notifications are working! You\'re all set.',
+            tag: 'test-notification',
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Test sent!',
+        description: `Sent to ${(data?.webSent || 0) + (data?.fcmSent || 0)} device(s)`,
+      });
+    } catch (err: any) {
+      console.error('Test notification error:', err);
+      toast({
+        title: 'Failed to send',
+        description: err.message || 'Make sure notifications are enabled',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingTestNotification(false);
+    }
   };
 
   const handleSignOut = async () => {
@@ -165,7 +232,28 @@ const SettingsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div 
+      className="min-h-screen bg-background"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull to refresh indicator */}
+      <motion.div
+        className="fixed top-0 left-0 right-0 flex justify-center z-40 pointer-events-none"
+        animate={{ 
+          y: pullDistance > 0 ? pullDistance - 40 : -40,
+          opacity: pullDistance > 30 ? 1 : 0 
+        }}
+      >
+        <div className="bg-primary/20 backdrop-blur-sm rounded-full p-2">
+          <RefreshCw 
+            className={`w-5 h-5 text-primary ${refreshing ? 'animate-spin' : ''}`}
+            style={{ transform: `rotate(${pullDistance * 3}deg)` }}
+          />
+        </div>
+      </motion.div>
+
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b border-border/50">
         <div className="container mx-auto px-4 h-16 flex items-center gap-4">
@@ -250,11 +338,32 @@ const SettingsPage = () => {
           </motion.section>
         ))}
 
-        {/* Sign Out */}
+        {/* Test Push Notification */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
+        >
+          <Button
+            variant="outline"
+            className="w-full h-14 gap-3 rounded-2xl border-primary/30 text-primary hover:bg-primary/10"
+            onClick={handleTestNotification}
+            disabled={sendingTestNotification}
+          >
+            {sendingTestNotification ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Send className="w-5 h-5" />
+            )}
+            Test Push Notification
+          </Button>
+        </motion.div>
+
+        {/* Sign Out */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
           className="space-y-3"
         >
           <Button
