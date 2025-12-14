@@ -25,21 +25,15 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/invite" element={<Invite />} />
-          <Route path="/*" element={
-            <AuthProvider>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/update-password" element={<UpdatePassword />} />
-                <Route path="/notifications" element={<NotificationSettings />} />
-                <Route path="/admin/notifications" element={<NotificationAdmin />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/settings/blocked" element={<BlockedUsers />} />
-                <Route path="/settings/privacy" element={<PrivacySettings />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </AuthProvider>
-          } />
+          <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
+          <Route path="/update-password" element={<AuthProvider><UpdatePassword /></AuthProvider>} />
+          <Route path="/notifications" element={<AuthProvider><NotificationSettings /></AuthProvider>} />
+          <Route path="/admin/notifications" element={<AuthProvider><NotificationAdmin /></AuthProvider>} />
+          <Route path="/settings" element={<AuthProvider><Settings /></AuthProvider>} />
+          <Route path="/settings/blocked" element={<AuthProvider><BlockedUsers /></AuthProvider>} />
+          <Route path="/settings/privacy" element={<AuthProvider><PrivacySettings /></AuthProvider>} />
+          <Route path="/" element={<AuthProvider><Index /></AuthProvider>} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
