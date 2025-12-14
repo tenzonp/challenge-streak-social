@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import Header from '@/components/woup/Header';
 import BottomNav from '@/components/woup/BottomNav';
 import ChallengeCard from '@/components/woup/ChallengeCard';
@@ -39,8 +39,9 @@ import { useChallengeExpiry } from '@/hooks/useChallengeExpiry';
 import { useStreakRewards } from '@/hooks/useStreakRewards';
 import { useCompetitions } from '@/hooks/useCompetitions';
 import { useAchievements } from '@/hooks/useAchievements';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, Zap, MessageCircle, Loader2, Search, Users, Globe, Trophy } from 'lucide-react';
+import { Sparkles, Zap, MessageCircle, Loader2, Search, Users, Globe, Trophy, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
@@ -61,7 +62,7 @@ const Index = () => {
   const { profile, loading: profileLoading, updateProfile } = useProfile();
   const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
   const [feedTab, setFeedTab] = useState<FeedTab>('friends');
-  const { posts, addReaction, markAsViewed, loading: feedLoading } = useAIFeed(feedTab);
+  const { posts, addReaction, markAsViewed, loading: feedLoading, refetch: refetchFeed } = useAIFeed(feedTab);
   const { 
     friends, 
     topFriends, 
@@ -75,12 +76,19 @@ const Index = () => {
     isFriend: checkIsFriend,
     refetch: refetchFriends 
   } = useFriends();
-  const { conversations } = useMessages();
+  const { conversations, refetch: refetchMessages } = useMessages();
   const { showReward, setShowReward, checkAndClaimReward } = useStreakRewards();
   const { activeCompetitions, leaderboard, userEntry, joinCompetition } = useCompetitions();
   const { newAchievement, setNewAchievement } = useAchievements();
   useChallengeExpiry();
   const { toast } = useToast();
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([refetchFeed(), refetchFriends(), refetchMessages()]);
+    toast({ title: 'Refreshed' });
+  }, [refetchFeed, refetchFriends, refetchMessages, toast]);
+
+  const { pullDistance, refreshing, handlers } = usePullToRefresh({ onRefresh: handleRefresh });
 
   const [activeTab, setActiveTab] = useState<Tab>('feed');
   const [selectedFriend, setSelectedFriend] = useState<Profile | null>(null);
@@ -206,7 +214,26 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background pb-24 pt-16 sm:pt-20">
+    <div 
+      className="min-h-[100dvh] bg-background pb-24 pt-16 sm:pt-20"
+      {...handlers}
+    >
+      {/* Pull to refresh indicator */}
+      <motion.div
+        className="fixed top-16 sm:top-20 left-0 right-0 flex justify-center z-40 pointer-events-none"
+        animate={{ 
+          y: pullDistance > 0 ? pullDistance - 40 : -40,
+          opacity: pullDistance > 30 ? 1 : 0 
+        }}
+      >
+        <div className="bg-primary/20 backdrop-blur-sm rounded-full p-2">
+          <RefreshCw 
+            className={`w-5 h-5 text-primary ${refreshing ? 'animate-spin' : ''}`}
+            style={{ transform: `rotate(${pullDistance * 3}deg)` }}
+          />
+        </div>
+      </motion.div>
+
       <Header 
         onProfileClick={() => setActiveTab('profile')} 
         pendingCount={pendingChallenges.length}
