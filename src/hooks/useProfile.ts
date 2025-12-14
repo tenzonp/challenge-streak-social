@@ -20,6 +20,8 @@ export interface Profile {
   song_url: string | null;
   spotify_connected: boolean | null;
   has_completed_onboarding: boolean;
+  email: string | null;
+  user_code: string | null;
   created_at: string;
   updated_at: string;
 }

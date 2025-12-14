@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/hooks/useProfile';
 
-export type MessageType = 'text' | 'snap' | 'voice';
+export type MessageType = 'text' | 'snap' | 'voice' | 'image' | 'video' | 'document';
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
 export interface MessageReaction {

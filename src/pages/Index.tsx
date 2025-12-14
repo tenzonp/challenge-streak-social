@@ -18,7 +18,6 @@ import RewardAnimation from '@/components/woup/RewardAnimation';
 import UserProfileModal from '@/components/woup/UserProfileModal';
 import StreakLeaderboard from '@/components/woup/StreakLeaderboard';
 import CompetitionCard from '@/components/woup/CompetitionCard';
-import VideoCallModal from '@/components/woup/VideoCallModal';
 import BookmarksVault from '@/components/woup/BookmarksVault';
 import OnboardingFlow from '@/components/woup/OnboardingFlow';
 import FriendsListModal from '@/components/woup/FriendsListModal';
@@ -88,7 +87,6 @@ const Index = () => {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [videoCallWith, setVideoCallWith] = useState<Profile | null>(null);
   const [showVault, setShowVault] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showFriendsList, setShowFriendsList] = useState(false);
@@ -427,7 +425,7 @@ const Index = () => {
           onClose={() => setShowChatsList(false)}
         />
       )}
-      {chatWith && <ChatView friend={chatWith} onBack={() => setChatWith(null)} onViewProfile={handleViewProfile} onVideoCall={setVideoCallWith} />}
+      {chatWith && <ChatView friend={chatWith} onBack={() => setChatWith(null)} onViewProfile={handleViewProfile} />}
       {showSearch && <UserSearch onChallenge={handleChallenge} onChat={setChatWith} onClose={() => setShowSearch(false)} />}
       {showCreatePost && <CreatePostModal onClose={() => setShowCreatePost(false)} />}
       {showReward && <RewardAnimation reward={showReward} onComplete={() => setShowReward(null)} />}
@@ -442,7 +440,6 @@ const Index = () => {
       {showLeaderboard && (
         <StreakLeaderboard onClose={() => setShowLeaderboard(false)} onViewProfile={handleViewProfile} />
       )}
-      {videoCallWith && <VideoCallModal friend={videoCallWith} onClose={() => setVideoCallWith(null)} />}
       {newAchievement && <AchievementUnlockModal achievement={newAchievement} onClose={() => setNewAchievement(null)} />}
       {showVault && <BookmarksVault onClose={() => setShowVault(false)} />}
       
