@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Lock, Sparkles, Check, CheckCheck, Eye, Play, Pause, Image as ImageIcon, Reply, Trash2, Flag, MoreVertical, Smile } from 'lucide-react';
+import { ArrowLeft, Send, Music, Mic, Camera, Video, X, Lock, Sparkles, Check, CheckCheck, Eye, EyeOff, Play, Pause, Image as ImageIcon, Reply, Trash2, Flag, MoreVertical, Smile, Search as SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { Message, MessageReaction, useMessages } from '@/hooks/useMessages';
@@ -175,12 +175,25 @@ const SnapMessage = ({
         </div>
       )}
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
-        <Eye className="w-8 h-8 text-white mb-2" />
+        {message.status === 'read' && isMe ? (
+          <EyeOff className="w-8 h-8 text-white mb-2" />
+        ) : (
+          <Eye className="w-8 h-8 text-white mb-2" />
+        )}
         <span className="text-white text-sm font-bold">
-          {isMe ? `${localViewsLeft} views left` : canView ? 'Tap to view' : 'Expired'}
+          {isMe 
+            ? (message.status === 'read' 
+                ? `Opened • ${localViewsLeft} left` 
+                : `${localViewsLeft} views left`)
+            : canView ? 'Tap to view' : 'Expired'}
         </span>
         {!isMe && canView && (
           <span className="text-white/70 text-xs mt-1">{localViewsLeft} views left</span>
+        )}
+        {isMe && message.status === 'read' && localViewsLeft < 3 && (
+          <span className="text-white/70 text-xs mt-1 flex items-center gap-1">
+            <CheckCheck className="w-3 h-3" /> Viewed
+          </span>
         )}
       </div>
     </motion.div>
@@ -301,7 +314,7 @@ const ReactionPicker = ({
 
 const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps) => {
   const { user } = useAuth();
-  const { sendMessage, getMessages, decrementSnapViews, deleteMessage, deleteAllChat, reportMessage, addReaction, removeReaction } = useMessages();
+  const { sendMessage, getMessages, searchMessages, markSnapAsViewed, decrementSnapViews, deleteMessage, deleteAllChat, reportMessage, addReaction, removeReaction } = useMessages();
   const { isRecording, duration, startRecording, stopRecording, cancelRecording, uploadAudio, formatDuration } = useAudioRecorder();
   const { isLocked, hasPassword } = useChatLock(friend.user_id);
   const { isPartnerTyping, handleTyping, stopTyping } = useTypingIndicator(friend.user_id);
@@ -315,8 +328,13 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMessages = useCallback(async () => {
     const msgs = await getMessages(friend.user_id);
@@ -430,15 +448,42 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
 
   const handleViewSnap = async (messageId: string) => {
     const remaining = await decrementSnapViews(messageId);
+    // Mark snap as viewed (read receipt)
+    await markSnapAsViewed(messageId);
     if (remaining === 0) {
       toast('Snap expired! 💨');
     }
     // Update local state immediately
     setMessages(prev => prev.map(m => 
       m.id === messageId 
-        ? { ...m, snap_views_remaining: remaining ?? 0 }
+        ? { ...m, snap_views_remaining: remaining ?? 0, status: 'read' as const }
         : m
     ));
+  };
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setIsSearching(true);
+    const results = await searchMessages(friend.user_id, query);
+    setSearchResults(results);
+    setIsSearching(false);
+  };
+
+  const scrollToMessage = (messageId: string) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('bg-primary/20');
+      setTimeout(() => element.classList.remove('bg-primary/20'), 2000);
+    }
+    setShowSearch(false);
+    setSearchQuery('');
+    setSearchResults([]);
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -530,11 +575,12 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
 
     return (
       <motion.div 
-        key={msg.id} 
+        key={msg.id}
+        id={`message-${msg.id}`}
         initial={{ opacity: 0, y: 10 }} 
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: i * 0.02 }} 
-        className={cn("flex group relative", isMe ? "justify-end" : "justify-start")}
+        className={cn("flex group relative transition-colors duration-500", isMe ? "justify-end" : "justify-start")}
       >
         <div className={cn("relative max-w-[80%]", isMe && "flex flex-col items-end")}>
           {/* Reply preview */}
@@ -692,13 +738,16 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           </button>
 
           <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { setShowSearch(true); setTimeout(() => searchInputRef.current?.focus(), 100); }} type="button">
+              <SearchIcon className="w-5 h-5" />
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full" type="button">
                   <MoreVertical className="w-5 h-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="bg-background border-border">
                 <DropdownMenuItem onClick={() => setShowLockSettings(true)}>
                   <Lock className="w-4 h-4 mr-2" /> {hasPassword ? 'Chat Lock' : 'Add Lock'}
                 </DropdownMenuItem>
@@ -714,6 +763,65 @@ const ChatView = ({ friend, onBack, onViewProfile, onVideoCall }: ChatViewProps)
           </div>
         </div>
       </div>
+
+      {/* Search Overlay */}
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-0 left-0 right-0 z-20 bg-background border-b border-border/50 safe-top"
+          >
+            <div className="flex items-center gap-2 p-3">
+              <Button variant="ghost" size="icon" onClick={() => { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }} className="rounded-full" type="button">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div className="flex-1 relative">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search messages..."
+                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-muted/50 border border-border/30 outline-none focus:border-primary text-sm"
+                />
+              </div>
+            </div>
+            
+            {/* Search Results */}
+            {searchQuery && (
+              <div className="max-h-64 overflow-y-auto border-t border-border/30">
+                {isSearching ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No messages found
+                  </div>
+                ) : (
+                  searchResults.map((msg) => (
+                    <button
+                      key={msg.id}
+                      onClick={() => scrollToMessage(msg.id)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{msg.content}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(msg.created_at).toLocaleDateString()} • {msg.sender_id === user?.id ? 'You' : friend.display_name}
+                        </p>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4" onClick={() => setShowReactionPicker(null)}>

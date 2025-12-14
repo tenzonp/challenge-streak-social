@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PhoneOff, Mic, MicOff, Video, VideoOff, X, Loader2 } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/hooks/useProfile';
 import { useVideoCall } from '@/hooks/useVideoCall';
+import { useProfile as useUserProfile } from '@/hooks/useProfile';
 
 interface VideoCallModalProps {
   friend: Profile;
@@ -11,14 +12,19 @@ interface VideoCallModalProps {
 }
 
 const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
+  const { profile } = useUserProfile();
   const {
     isInCall,
     isCalling,
+    isReceivingCall,
+    incomingCallData,
     localStream,
     remoteStream,
     isMuted,
     isVideoOff,
     startCall,
+    acceptCall,
+    rejectCall,
     endCall,
     toggleMute,
     toggleVideo
@@ -26,11 +32,15 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const [callStarted, setCallStarted] = useState(false);
 
   useEffect(() => {
-    // Auto-start call when modal opens
-    startCall();
-  }, [startCall]);
+    // Auto-start call when modal opens (only once)
+    if (!callStarted && !isReceivingCall) {
+      setCallStarted(true);
+      startCall(profile?.display_name, profile?.avatar_url || undefined);
+    }
+  }, [callStarted, isReceivingCall, startCall, profile]);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -47,6 +57,99 @@ const VideoCallModal = ({ friend, onClose }: VideoCallModalProps) => {
   const handleEndCall = () => {
     endCall();
   };
+
+  const handleRejectCall = () => {
+    rejectCall();
+    onClose();
+  };
+
+  const handleAcceptCall = () => {
+    acceptCall();
+  };
+
+  // Show incoming call UI
+  if (isReceivingCall && incomingCallData) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-lg flex flex-col items-center justify-center"
+        >
+          {/* Caller info */}
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="text-center mb-12"
+          >
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="relative inline-block mb-6"
+            >
+              <img
+                src={friend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.user_id}`}
+                className="w-32 h-32 rounded-3xl"
+                style={{ 
+                  borderColor: friend.color_primary || 'hsl(var(--primary))',
+                  borderWidth: 4
+                }}
+              />
+              <motion.div
+                className="absolute inset-0 rounded-3xl"
+                style={{ borderColor: friend.color_primary || 'hsl(var(--primary))', borderWidth: 4 }}
+                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+              />
+            </motion.div>
+            
+            <h2 className="text-2xl font-bold mb-2">{friend.display_name}</h2>
+            <p className="text-muted-foreground flex items-center justify-center gap-2">
+              <Phone className="w-4 h-4 animate-pulse" />
+              Incoming video call...
+            </p>
+          </motion.div>
+
+          {/* Accept/Reject buttons */}
+          <div className="flex items-center gap-8">
+            <motion.div
+              initial={{ x: -50, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Button
+                variant="destructive"
+                size="lg"
+                className="w-16 h-16 rounded-full"
+                onClick={handleRejectCall}
+                type="button"
+              >
+                <PhoneOff className="w-7 h-7" />
+              </Button>
+              <p className="text-center text-sm text-muted-foreground mt-2">Decline</p>
+            </motion.div>
+            
+            <motion.div
+              initial={{ x: 50, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Button
+                size="lg"
+                className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-600"
+                onClick={handleAcceptCall}
+                type="button"
+              >
+                <Phone className="w-7 h-7" />
+              </Button>
+              <p className="text-center text-sm text-muted-foreground mt-2">Accept</p>
+            </motion.div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>
