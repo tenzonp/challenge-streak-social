@@ -16,10 +16,13 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.content-moderation]
-verify_jwt = true
+verify_jwt = false
 
 [functions.streak-reminders]
 verify_jwt = true
 
 [functions.moderate-reported-post]
+verify_jwt = true
+
+[functions.delete-account]
 verify_jwt = true

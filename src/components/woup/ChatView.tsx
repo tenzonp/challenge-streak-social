@@ -571,9 +571,13 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
     if (!input.trim() || sending) return;
     stopTyping();
     setSending(true);
-    await sendMessage(friend.user_id, input.trim(), 'text', undefined, undefined, replyTo?.id);
-    setInput('');
-    setReplyTo(null);
+    const { error } = await sendMessage(friend.user_id, input.trim(), 'text', undefined, undefined, replyTo?.id);
+    if (error) {
+      toast.error(error.message || 'Failed to send message');
+    } else {
+      setInput('');
+      setReplyTo(null);
+    }
     setSending(false);
   };
 

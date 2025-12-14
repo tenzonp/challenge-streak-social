@@ -195,7 +195,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20 pt-20">
+    <div className="min-h-[100dvh] bg-background pb-24 pt-16 sm:pt-20">
       <Header 
         onProfileClick={() => setActiveTab('profile')} 
         pendingCount={pendingChallenges.length}
@@ -205,7 +205,7 @@ const Index = () => {
         onFriendRequestsClick={() => setShowFriendRequests(true)}
       />
       
-      <main className="container mx-auto px-4">
+      <main className="container mx-auto px-3 sm:px-4">
         {activeTab === 'feed' && (
           <div className="space-y-6">
             {/* Feed Tabs */}

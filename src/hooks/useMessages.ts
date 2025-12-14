@@ -115,6 +115,21 @@ export const useMessages = () => {
   ) => {
     if (!user) return { error: new Error('Not authenticated') };
 
+    // Moderate text content before sending
+    if (content && messageType === 'text') {
+      try {
+        const { data: moderationData } = await supabase.functions.invoke('content-moderation', {
+          body: { text: content, type: 'text-only' }
+        });
+        
+        if (moderationData && !moderationData.isClean) {
+          return { error: new Error('Message contains inappropriate content') };
+        }
+      } catch (err) {
+        console.log('Moderation check failed, proceeding:', err);
+      }
+    }
+
     const { error } = await supabase
       .from('messages')
       .insert({
