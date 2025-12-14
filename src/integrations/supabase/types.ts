@@ -569,6 +569,7 @@ export type Database = {
           current_artist: string | null
           current_song: string | null
           display_name: string
+          email: string | null
           has_completed_onboarding: boolean
           id: string
           interests: string[] | null
@@ -590,6 +591,7 @@ export type Database = {
           current_artist?: string | null
           current_song?: string | null
           display_name: string
+          email?: string | null
           has_completed_onboarding?: boolean
           id?: string
           interests?: string[] | null
@@ -611,6 +613,7 @@ export type Database = {
           current_artist?: string | null
           current_song?: string | null
           display_name?: string
+          email?: string | null
           has_completed_onboarding?: boolean
           id?: string
           interests?: string[] | null

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Loader2, Sparkles, Zap, Flame, Trophy, Phone, Mail, ArrowLeft, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Sparkles, Zap, Flame, Trophy, Phone, Mail, ArrowLeft, KeyRound, AtSign } from 'lucide-react';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
@@ -15,6 +15,11 @@ const emailAuthSchema = z.object({
   displayName: z.string().min(1, 'display name is required').max(50).optional(),
 });
 
+const usernameLoginSchema = z.object({
+  username: z.string().min(3, 'username must be at least 3 characters').max(30),
+  password: z.string().min(6, 'password must be at least 6 characters').max(100),
+});
+
 const phoneAuthSchema = z.object({
   phone: z.string().min(10, 'phone number must be at least 10 digits').max(15),
   otp: z.string().length(6, 'OTP must be 6 digits').optional(),
@@ -24,7 +29,7 @@ const forgotPasswordSchema = z.object({
   email: z.string().email('invalid email address').max(255),
 });
 
-type AuthMethod = 'email' | 'phone';
+type AuthMethod = 'email' | 'phone' | 'username';
 type AuthView = 'main' | 'forgot-password' | 'reset-sent' | 'verification-sent';
 
 const Auth = () => {
@@ -48,6 +53,9 @@ const Auth = () => {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  
+  // Username login state
+  const [loginUsername, setLoginUsername] = useState('');
   
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -148,7 +156,7 @@ const Auth = () => {
     setLoading(true);
     try {
       const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`;
-      const { error } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         phone: formattedPhone,
         token: otp,
         type: 'sms',
@@ -161,9 +169,96 @@ const Auth = () => {
           variant: "destructive",
         });
       } else {
+        // Check if user has a profile
+        if (data.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('user_id', data.user.id)
+            .single();
+          
+          if (!profile?.username) {
+            // New user from phone auth - redirect to setup profile
+            toast({
+              title: "one more step! ✨",
+              description: "let's set up your profile",
+            });
+            navigate('/setup-profile');
+          } else {
+            toast({
+              title: "welcome back! 🎉",
+              description: "you're now logged in",
+            });
+            navigate('/');
+          }
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUsernameLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+    
+    const validation = usernameLoginSchema.safeParse({
+      username: loginUsername,
+      password,
+    });
+
+    if (!validation.success) {
+      const fieldErrors: Record<string, string> = {};
+      validation.error.errors.forEach(err => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as string] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Look up email by username
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('username', loginUsername.toLowerCase())
+        .single();
+
+      if (profileError || !profile) {
         toast({
-          title: "welcome! 🎉",
-          description: "you're now logged in",
+          title: "user not found",
+          description: "no account with that username exists",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (!profile.email) {
+        toast({
+          title: "email not linked",
+          description: "this account doesn't have an email. try phone login.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Sign in with the retrieved email
+      const { error } = await signIn(profile.email, password);
+      if (error) {
+        toast({
+          title: "login failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "welcome back! 🎉",
+          description: "let's see what challenges await",
         });
         navigate('/');
       }
@@ -503,31 +598,91 @@ const Auth = () => {
           <Button
             type="button"
             variant={authMethod === 'email' ? 'default' : 'outline'}
-            className="flex-1 gap-2"
+            className="flex-1 gap-1.5 text-xs px-2"
             onClick={() => {
               setAuthMethod('email');
               setOtpSent(false);
               setErrors({});
             }}
           >
-            <Mail className="w-4 h-4" />
+            <Mail className="w-3.5 h-3.5" />
             email
           </Button>
+          {isLogin && (
+            <Button
+              type="button"
+              variant={authMethod === 'username' ? 'default' : 'outline'}
+              className="flex-1 gap-1.5 text-xs px-2"
+              onClick={() => {
+                setAuthMethod('username');
+                setErrors({});
+              }}
+            >
+              <AtSign className="w-3.5 h-3.5" />
+              username
+            </Button>
+          )}
           <Button
             type="button"
             variant={authMethod === 'phone' ? 'default' : 'outline'}
-            className="flex-1 gap-2"
+            className="flex-1 gap-1.5 text-xs px-2"
             onClick={() => {
               setAuthMethod('phone');
               setErrors({});
             }}
           >
-            <Phone className="w-4 h-4" />
+            <Phone className="w-3.5 h-3.5" />
             phone
           </Button>
         </div>
 
-        {authMethod === 'email' ? (
+        {authMethod === 'username' ? (
+          <form onSubmit={handleUsernameLogin} className="space-y-3">
+            <div>
+              <input
+                type="text"
+                placeholder="username"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
+                maxLength={30}
+              />
+              {errors.username && <p className="text-destructive text-xs mt-1">{errors.username}</p>}
+            </div>
+
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all pr-12"
+                maxLength={100}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+              {errors.password && <p className="text-destructive text-xs mt-1">{errors.password}</p>}
+            </div>
+
+            <Button 
+              type="submit" 
+              variant="neon" 
+              className="w-full h-12 text-base font-bold"
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                "let's go! 🚀"
+              )}
+            </Button>
+          </form>
+        ) : authMethod === 'email' ? (
           <form onSubmit={handleEmailSubmit} className="space-y-3">
             {!isLogin && (
               <>

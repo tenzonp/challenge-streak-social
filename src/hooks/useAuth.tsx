@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string, username: string, displayName: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -52,6 +52,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     });
+    
+    // If signup successful, update profile with email for username login
+    if (!error && data.user) {
+      await supabase
+        .from('profiles')
+        .update({ email })
+        .eq('user_id', data.user.id);
+    }
     
     return { error: error as Error | null };
   };

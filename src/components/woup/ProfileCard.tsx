@@ -172,21 +172,22 @@ const ProfileCard = ({ profile, onEdit, onShowLeaderboard, onShowVault, onShowFr
         </div>
       </button>
 
-      {/* Blocked Users */}
+      {/* Settings */}
       <button 
-        onClick={() => navigate('/settings/blocked')}
+        onClick={() => navigate('/settings')}
         className="w-full glass rounded-2xl p-4 text-left hover:bg-muted/20 transition-colors"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div 
-              className="w-12 h-12 rounded-2xl flex items-center justify-center bg-destructive/20"
+              className="w-12 h-12 rounded-2xl flex items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${profile.color_primary || '#4ade80'}40, ${profile.color_secondary || '#f472b6'}40)` }}
             >
-              <UserX className="w-5 h-5 text-destructive" />
+              <Settings className="w-5 h-5" style={{ color: profile.color_primary || 'hsl(var(--primary))' }} />
             </div>
             <div>
-              <p className="font-semibold">Blocked Users</p>
-              <p className="text-sm text-muted-foreground">Manage blocked accounts</p>
+              <p className="font-semibold">Settings</p>
+              <p className="text-sm text-muted-foreground">Account, notifications, privacy</p>
             </div>
           </div>
           <ChevronRight className="w-5 h-5 text-muted-foreground" />
