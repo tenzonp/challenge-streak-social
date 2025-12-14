@@ -12,6 +12,7 @@ import NotificationAdmin from "./pages/NotificationAdmin";
 import BlockedUsers from "./pages/BlockedUsers";
 import Settings from "./pages/Settings";
 import PrivacySettings from "./pages/PrivacySettings";
+import Invite from "./pages/Invite";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/settings" element={<Settings />} />
             <Route path="/settings/blocked" element={<BlockedUsers />} />
             <Route path="/settings/privacy" element={<PrivacySettings />} />
+            <Route path="/invite" element={<Invite />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
