@@ -81,6 +81,42 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* Performance mode for low-end devices */
+  html.perf-reduce-motion {
+    scroll-behavior: auto;
+  }
+
+  html.perf-reduce-motion *,
+  html.perf-reduce-motion *::before,
+  html.perf-reduce-motion *::after {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  html.perf-low-end .glass {
+    backdrop-filter: blur(12px);
+  }
+
+  html.perf-low-end .glass-strong {
+    backdrop-filter: blur(16px);
+  }
+
+  html.perf-low-end .gradient-rainbow,
+  html.perf-low-end .text-gradient-rainbow,
+  html.perf-low-end .dopamine-burst::after,
+  html.perf-low-end .animate-bounce,
+  html.perf-low-end .animate-spin,
+  html.perf-low-end .animate-pulse,
+  html.perf-low-end .animate-pulse-slow,
+  html.perf-low-end .animate-glow,
+  html.perf-low-end .animate-glow-pink,
+  html.perf-low-end .animate-float,
+  html.perf-low-end .animate-wiggle {
+    animation: none !important;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Outfit', sans-serif;
