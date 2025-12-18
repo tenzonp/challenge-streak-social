@@ -1,92 +1,80 @@
-// Service Worker for Push Notifications - Enhanced with better logging
+// Service Worker for Push Notifications - Optimized v2
+const SW_VERSION = '2.0.0';
 
-const SW_VERSION = '1.0.1';
-
+// Handle push events
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push event received:', event);
+  console.log('[SW] Push received');
   
-  let options = {};
+  let data = {};
   try {
-    options = event.data?.json() || {};
+    data = event.data?.json() || {};
   } catch (e) {
-    console.log('[SW] Push data is not JSON, using text:', event.data?.text());
-    options = { body: event.data?.text() || 'New notification' };
+    data = { body: event.data?.text() || 'New notification' };
   }
   
-  const notificationOptions = {
-    body: options.body || 'New notification',
-    icon: options.icon || '/favicon.ico',
+  const options = {
+    body: data.body || 'You have a new notification',
+    icon: data.icon || '/favicon.ico',
     badge: '/favicon.ico',
     vibrate: [100, 50, 100],
-    data: options.data || {},
-    actions: options.actions || [],
-    tag: options.tag || 'woup-notification',
-    renotify: true
+    data: data.data || { url: '/' },
+    tag: data.tag || `woup-${Date.now()}`,
+    renotify: true,
+    requireInteraction: data.requireInteraction || false,
+    actions: data.actions || []
   };
 
-  console.log('[SW] Showing notification:', options.title, notificationOptions);
-
   event.waitUntil(
-    self.registration.showNotification(options.title || 'Woup', notificationOptions)
+    self.registration.showNotification(data.title || 'Woup', options)
   );
 });
 
+// Handle notification click
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked:', event.notification);
   event.notification.close();
-
-  const data = event.notification.data || {};
-  const urlToOpen = data.url || '/';
-
+  
+  const url = event.notification.data?.url || '/';
+  
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        // Check if there's already a window open
+      .then(clientList => {
+        // Focus existing window if available
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && 'focus' in client) {
-            client.navigate(urlToOpen);
-            return client.focus();
+            return client.navigate(url).then(() => client.focus());
           }
         }
-        // Open a new window if none exists
+        // Open new window
         if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
+          return clients.openWindow(url);
         }
       })
   );
 });
 
+// Install - skip waiting
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker version:', SW_VERSION);
-  // Skip waiting to activate immediately
+  console.log('[SW] Installing v' + SW_VERSION);
   event.waitUntil(self.skipWaiting());
 });
 
+// Activate - claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker version:', SW_VERSION);
-  // Take control of all clients immediately
+  console.log('[SW] Activating v' + SW_VERSION);
   event.waitUntil(
     Promise.all([
       self.clients.claim(),
-      // Clean up old caches if any
-      caches.keys().then(keys => 
-        Promise.all(keys.map(key => caches.delete(key)))
-      )
+      caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
     ])
   );
 });
 
-// Handle push subscription change
+// Handle subscription change
 self.addEventListener('pushsubscriptionchange', (event) => {
-  console.log('[SW] Push subscription changed:', event);
-  // The subscription was invalidated, need to resubscribe
+  console.log('[SW] Subscription changed');
   event.waitUntil(
     self.registration.pushManager.subscribe({ userVisibleOnly: true })
-      .then(subscription => {
-        console.log('[SW] Re-subscribed:', subscription.endpoint);
-      })
-      .catch(err => {
-        console.error('[SW] Failed to re-subscribe:', err);
-      })
+      .then(sub => console.log('[SW] Resubscribed'))
+      .catch(err => console.error('[SW] Resubscribe failed:', err))
   );
 });

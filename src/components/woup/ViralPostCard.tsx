@@ -129,13 +129,20 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
 
   if (isHidden || locallyHidden) return null;
 
+  // Simplify animations on low-end
+  const animationProps = reduceMotion 
+    ? { initial: false, animate: {} } 
+    : { 
+        initial: isNew ? { opacity: 0, y: 30 } : false,
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.2 }
+      };
+
   return (
     <>
       <motion.article
         ref={cardRef}
-        initial={isNew ? { opacity: 0, y: 50, scale: 0.9 } : false}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ type: 'spring', damping: 20 }}
+        {...animationProps}
         className="glass rounded-3xl overflow-hidden group"
       >
         {/* Header */}
@@ -238,17 +245,14 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
           onClick={() => setShowFront(!showFront)}
           onDoubleClick={handleDoubleTap}
         >
-          <motion.img
-            key={showFront ? 'front' : 'back'}
-            initial={{ opacity: 0, scale: 1.1 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
-            src={showFront ? post.back_photo_url : post.front_photo_url}
-            alt="Challenge response"
-            loading="lazy"
-            decoding="async"
-            className="w-full h-full object-cover"
-          />
+        <img
+          key={showFront ? 'front' : 'back'}
+          src={showFront ? post.back_photo_url : post.front_photo_url}
+          alt="Challenge response"
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover"
+        />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
 
