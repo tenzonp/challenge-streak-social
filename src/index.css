@@ -89,23 +89,47 @@
   html.perf-reduce-motion *,
   html.perf-reduce-motion *::before,
   html.perf-reduce-motion *::after {
-    transition-duration: 0.001ms !important;
-    animation-duration: 0.001ms !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
   }
 
+  /* Low-end device optimizations - disable blur completely */
   html.perf-low-end .glass {
-    backdrop-filter: blur(12px);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: hsl(260 18% 10% / 0.98) !important;
   }
 
   html.perf-low-end .glass-strong {
-    backdrop-filter: blur(16px);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: hsl(260 18% 12% / 0.99) !important;
   }
 
+  /* Disable all shadows on low-end */
+  html.perf-low-end .shadow-neon-green,
+  html.perf-low-end .shadow-neon-pink,
+  html.perf-low-end .shadow-neon-cyan,
+  html.perf-low-end .shadow-neon-purple,
+  html.perf-low-end .shadow-2xl,
+  html.perf-low-end .shadow-xl,
+  html.perf-low-end .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  /* Simplify gradients on low-end */
   html.perf-low-end .gradient-rainbow,
-  html.perf-low-end .text-gradient-rainbow,
-  html.perf-low-end .dopamine-burst::after,
+  html.perf-low-end .text-gradient-rainbow {
+    background: hsl(var(--primary)) !important;
+    animation: none !important;
+  }
+
+  html.perf-low-end .dopamine-burst::after {
+    display: none !important;
+  }
+
   html.perf-low-end .animate-bounce,
   html.perf-low-end .animate-spin,
   html.perf-low-end .animate-pulse,
@@ -113,8 +137,25 @@
   html.perf-low-end .animate-glow,
   html.perf-low-end .animate-glow-pink,
   html.perf-low-end .animate-float,
-  html.perf-low-end .animate-wiggle {
+  html.perf-low-end .animate-wiggle,
+  html.perf-low-end .animate-shake {
     animation: none !important;
+  }
+
+  /* Force GPU acceleration and content visibility */
+  html.perf-low-end img {
+    content-visibility: auto;
+    contain-intrinsic-size: 300px 400px;
+  }
+
+  html.perf-low-end article {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 500px;
+  }
+
+  /* Reduce paint on scroll */
+  html.perf-low-end {
+    contain: layout style;
   }
 
   body {
