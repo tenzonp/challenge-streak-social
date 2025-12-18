@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { X, Camera, Palette, Music, Tag, Save, Loader2 } from 'lucide-react';
+import { X, Camera, Palette, Tag, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile, useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCamera } from '@/hooks/useCamera';
+import { compressImageFile } from '@/utils/imageCompression';
 
 interface ProfileEditModalProps {
   profile: Profile;
@@ -76,17 +77,24 @@ const ProfileEditModal = ({ profile, onClose }: ProfileEditModalProps) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
+    try {
+      // Compress avatar (smaller size for profile pics)
+      const { dataUrl } = await compressImageFile(file, {
+        maxWidth: 400,
+        maxHeight: 400,
+        quality: 0.85,
+      });
+      
       const url = await uploadPhoto(dataUrl, 'front');
       if (url) {
         await updateProfile({ avatar_url: url });
         await refetch();
         toast({ title: 'avatar updated! 📸' });
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      toast({ title: 'failed to update avatar', variant: 'destructive' });
+    }
   };
 
   return (

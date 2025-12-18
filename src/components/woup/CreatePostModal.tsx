@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { usePosts } from '@/hooks/usePosts';
 import { useCamera } from '@/hooks/useCamera';
+import { compressImageFile } from '@/utils/imageCompression';
 
 interface CreatePostModalProps {
   onClose: () => void;
@@ -17,13 +18,24 @@ const CreatePostModal = ({ onClose }: CreatePostModalProps) => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
+    try {
+      // Compress image immediately for preview and faster upload
+      const { dataUrl } = await compressImageFile(file, {
+        maxWidth: 1200,
+        maxHeight: 1600,
+        quality: 0.8,
+      });
+      setImagePreview(dataUrl);
+    } catch {
+      // Fallback to original
+      const reader = new FileReader();
+      reader.onload = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   const handlePost = async () => {

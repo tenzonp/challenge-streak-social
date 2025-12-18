@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource, CameraDirection } from '@capacitor/camera';
+import { compressImage, dataUrlToBlob } from '@/utils/imageCompression';
 
 export const useCamera = () => {
   const { user } = useAuth();
@@ -124,9 +125,15 @@ export const useCamera = () => {
     if (!user) return null;
 
     try {
-      // Convert base64 to blob
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
+      // Compress image before upload (max 1200x1600, 80% quality)
+      const compressedDataUrl = await compressImage(dataUrl, {
+        maxWidth: 1200,
+        maxHeight: 1600,
+        quality: 0.8,
+      });
+
+      // Convert to blob
+      const blob = await dataUrlToBlob(compressedDataUrl);
 
       const fileName = `${user.id}/${Date.now()}_${photoType}.jpg`;
 
