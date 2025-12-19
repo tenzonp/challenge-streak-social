@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Header from '@/components/woup/Header';
 import BottomNav from '@/components/woup/BottomNav';
 import ChallengeCard from '@/components/woup/ChallengeCard';
-import ViralPostCard from '@/components/woup/ViralPostCard';
+import VirtualizedFeed from '@/components/woup/VirtualizedFeed';
 import FriendCard from '@/components/woup/FriendCard';
 import ProfileCard from '@/components/woup/ProfileCard';
 import SendChallengeModal from '@/components/woup/SendChallengeModal';
@@ -314,25 +314,12 @@ const Index = () => {
                 <Sparkles className="w-4 h-4" />
                 <h2 className="font-semibold text-sm">{feedTab === 'friends' ? 'Friends Feed' : 'Global Feed'}</h2>
               </div>
-              {posts.length === 0 ? (
-                <div className="bg-card rounded-xl p-8 text-center border border-border">
-                  <Sparkles className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground text-sm">No posts yet. Be the first!</p>
-                </div>
-              ) : (
-                <div className="space-y-0">
-                  {posts.map((post, i) => (
-                    <ViralPostCard 
-                      key={post.id} 
-                      post={post} 
-                      onReact={addReaction} 
-                      onViewProfile={handleViewProfile}
-                      onView={markAsViewed}
-                      isNew={i < 3}
-                    />
-                  ))}
-                </div>
-              )}
+              <VirtualizedFeed
+                posts={posts}
+                onReact={addReaction}
+                onViewProfile={handleViewProfile}
+                onView={markAsViewed}
+              />
             </section>
           </div>
         )}
