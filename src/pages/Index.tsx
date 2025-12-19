@@ -62,7 +62,7 @@ const Index = () => {
   const { profile, loading: profileLoading, updateProfile } = useProfile();
   const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
   const [feedTab, setFeedTab] = useState<FeedTab>('friends');
-  const { posts, addReaction, markAsViewed, loading: feedLoading, refetch: refetchFeed } = useAIFeed(feedTab);
+  const { posts, addReaction, markAsViewed, loading: feedLoading, loadingMore, hasMore, loadMore, refetch: refetchFeed } = useAIFeed(feedTab);
   const { 
     friends, 
     topFriends, 
@@ -319,6 +319,9 @@ const Index = () => {
                 onReact={addReaction}
                 onViewProfile={handleViewProfile}
                 onView={markAsViewed}
+                onLoadMore={loadMore}
+                hasMore={hasMore}
+                loadingMore={loadingMore}
               />
             </section>
           </div>
