@@ -6,142 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface PushPayload {
-  title: string;
-  body: string;
-  icon?: string;
-  data?: Record<string, unknown>;
-  actions?: { action: string; title: string }[];
-  tag?: string;
-}
-
-// Send notification via Firebase Cloud Messaging (for native apps)
-async function sendFCMNotification(
-  deviceToken: string,
-  payload: PushPayload,
-  fcmServerKey: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    console.log('[FCM] Sending to token:', deviceToken.substring(0, 20) + '...');
-
-    const fcmPayload = {
-      to: deviceToken,
-      notification: {
-        title: payload.title,
-        body: payload.body,
-        icon: payload.icon || '/favicon.ico',
-        sound: 'default',
-        badge: '1',
-      },
-      data: payload.data || {},
-      priority: 'high',
-    };
-
-    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `key=${fcmServerKey}`,
-      },
-      body: JSON.stringify(fcmPayload),
-    });
-
-    const result = await response.json();
-    console.log('[FCM] Response:', JSON.stringify(result));
-
-    if (result.success === 1) {
-      return { success: true };
-    } else if (result.failure === 1 && result.results?.[0]?.error) {
-      const error = result.results[0].error;
-      if (error === 'NotRegistered' || error === 'InvalidRegistration') {
-        return { success: false, error: 'token_expired' };
-      }
-      return { success: false, error };
-    }
-
-    return { success: response.ok };
-  } catch (error) {
-    console.error('[FCM] Error:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
-
-// Send notification via Web Push (VAPID) for web browsers
-async function sendWebPushNotification(
-  subscription: { endpoint: string; p256dh_key: string; auth_key: string },
-  payload: PushPayload,
-  vapidPublicKey: string,
-  vapidPrivateKey: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    console.log('[WebPush] Sending to endpoint:', subscription.endpoint.substring(0, 60) + '...');
-
-    const endpointUrl = new URL(subscription.endpoint);
-    const audience = endpointUrl.origin;
-
-    // Create simple JWT for VAPID
-    const header = { alg: 'ES256', typ: 'JWT' };
-    const now = Math.floor(Date.now() / 1000);
-    const jwtPayload = {
-      aud: audience,
-      exp: now + 12 * 60 * 60,
-      sub: 'mailto:noreply@woup.app',
-    };
-
-    const encoder = new TextEncoder();
-    const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const payloadB64 = btoa(JSON.stringify(jwtPayload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const unsignedToken = `${headerB64}.${payloadB64}`;
-
-    const privateKeyBytes = Uint8Array.from(atob(vapidPrivateKey.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
-    
-    const cryptoKey = await crypto.subtle.importKey(
-      'pkcs8',
-      privateKeyBytes,
-      { name: 'ECDSA', namedCurve: 'P-256' },
-      false,
-      ['sign']
-    );
-
-    const signature = await crypto.subtle.sign(
-      { name: 'ECDSA', hash: 'SHA-256' },
-      cryptoKey,
-      encoder.encode(unsignedToken)
-    );
-
-    const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-      .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-
-    const jwt = `${unsignedToken}.${signatureB64}`;
-    const payloadString = JSON.stringify(payload);
-    const payloadBytes = new TextEncoder().encode(payloadString);
-
-    const response = await fetch(subscription.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'Content-Encoding': 'aes128gcm',
-        'TTL': '86400',
-        'Authorization': `vapid t=${jwt}, k=${vapidPublicKey}`,
-        'Urgency': 'normal',
-      },
-      body: payloadBytes,
-    });
-
-    if (!response.ok) {
-      if (response.status === 410 || response.status === 404) {
-        return { success: false, error: 'subscription_expired' };
-      }
-      return { success: false, error: `HTTP ${response.status}` };
-    }
-
-    return { success: true };
-  } catch (error) {
-    console.error('[WebPush] Error:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -151,9 +15,11 @@ serve(async (req) => {
     const { action, userId, payload } = await req.json();
     console.log('[Push] Action:', action, 'UserId:', userId);
 
-    // Get VAPID public key
+    // Get VAPID public key for web push subscription
     if (action === 'get-vapid-key') {
       const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
+      console.log('[Push] VAPID key requested, configured:', !!vapidPublicKey);
+      
       if (!vapidPublicKey) {
         return new Response(
           JSON.stringify({ error: 'VAPID key not configured' }),
@@ -166,71 +32,44 @@ serve(async (req) => {
       );
     }
 
-    // Send push notification
-    if (action === 'send') {
-      const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
-      const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
-      const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
+    // Save web push subscription
+    if (action === 'save-subscription') {
+      const { subscription } = await req.json().catch(() => ({}));
+      
+      if (!userId || !subscription) {
+        return new Response(
+          JSON.stringify({ error: 'Missing userId or subscription' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, serviceRoleKey);
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
 
-      // Get user's push subscriptions (web push)
-      const { data: webSubscriptions } = await supabase
+      const { error } = await supabase
         .from('push_subscriptions')
-        .select('*')
-        .eq('user_id', userId);
+        .upsert({
+          user_id: userId,
+          endpoint: subscription.endpoint,
+          p256dh_key: subscription.keys.p256dh,
+          auth_key: subscription.keys.auth,
+        }, {
+          onConflict: 'user_id,endpoint'
+        });
 
-      // Get user's FCM device tokens (native apps)
-      const { data: fcmTokens } = await supabase
-        .from('fcm_tokens')
-        .select('*')
-        .eq('user_id', userId);
-
-      const results: { success: boolean; type: string; error?: string }[] = [];
-
-      // Send to web subscriptions
-      if (webSubscriptions?.length && vapidPublicKey && vapidPrivateKey) {
-        console.log('[Push] Sending to', webSubscriptions.length, 'web subscriptions');
-        for (const sub of webSubscriptions) {
-          const result = await sendWebPushNotification(sub, payload, vapidPublicKey, vapidPrivateKey);
-          results.push({ ...result, type: 'web' });
-          
-          if (result.error === 'subscription_expired') {
-            await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
-            console.log('[Push] Cleaned up expired web subscription');
-          }
-        }
+      if (error) {
+        console.error('[Push] Failed to save subscription:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to save subscription' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-      // Send to FCM tokens (native apps)
-      if (fcmTokens?.length && fcmServerKey) {
-        console.log('[Push] Sending to', fcmTokens.length, 'FCM tokens');
-        for (const token of fcmTokens) {
-          const result = await sendFCMNotification(token.token, payload, fcmServerKey);
-          results.push({ ...result, type: 'fcm' });
-          
-          if (result.error === 'token_expired') {
-            await supabase.from('fcm_tokens').delete().eq('id', token.id);
-            console.log('[Push] Cleaned up expired FCM token');
-          }
-        }
-      }
-
-      const successCount = results.filter(r => r.success).length;
-      console.log('[Push] Sent', successCount, '/', results.length, 'successfully');
-
+      console.log('[Push] Subscription saved for user:', userId);
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          sent: successCount, 
-          total: results.length,
-          breakdown: {
-            web: results.filter(r => r.type === 'web').length,
-            fcm: results.filter(r => r.type === 'fcm').length,
-          }
-        }),
+        JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -245,7 +84,50 @@ serve(async (req) => {
         JSON.stringify({ 
           webPush: !!(vapidPublicKey && vapidPrivateKey),
           fcm: !!fcmServerKey,
+          vapidConfigured: !!vapidPublicKey,
         }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Send test notification to current user
+    if (action === 'send-test') {
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ error: 'User ID required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+
+      // Invoke send-notification function
+      const response = await fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            type: 'achievement',
+            title: '🎉 Test Notification',
+            body: 'Push notifications are working!',
+            data: { url: '/' }
+          })
+        }
+      );
+
+      const result = await response.json();
+      console.log('[Push] Test notification result:', result);
+
+      return new Response(
+        JSON.stringify(result),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

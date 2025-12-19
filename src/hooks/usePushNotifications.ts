@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from '@capacitor/push-notifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 interface SubscribeResult {
   success?: boolean;
@@ -46,7 +47,6 @@ export const usePushNotifications = () => {
 
     try {
       if (isNative) {
-        // Check FCM tokens table for native
         const { data } = await supabase
           .from('fcm_tokens')
           .select('id')
@@ -61,7 +61,6 @@ export const usePushNotifications = () => {
         setPermission(permResult.receive === 'granted' ? 'granted' : 
                      permResult.receive === 'denied' ? 'denied' : 'default');
       } else {
-        // Check web push subscriptions
         const { data } = await supabase
           .from('push_subscriptions')
           .select('id')
@@ -86,12 +85,10 @@ export const usePushNotifications = () => {
     if (!isNative || !user) return;
 
     const setupListeners = async () => {
-      // Handle successful registration - save FCM token
       await PushNotifications.addListener('registration', async (token: Token) => {
         console.log('[FCM] Registered with token:', token.value.substring(0, 20) + '...');
         
         try {
-          // Store FCM token in fcm_tokens table
           const { error } = await supabase
             .from('fcm_tokens')
             .upsert({
@@ -113,18 +110,15 @@ export const usePushNotifications = () => {
         }
       });
 
-      // Handle registration errors
       await PushNotifications.addListener('registrationError', (error) => {
         console.error('[FCM] Registration error:', error);
         setPermission('denied');
       });
 
-      // Handle incoming notifications when app is in foreground
       await PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
         console.log('[FCM] Notification received in foreground:', notification);
       });
 
-      // Handle notification tap
       await PushNotifications.addListener('pushNotificationActionPerformed', (action: ActionPerformed) => {
         console.log('[FCM] Notification tapped:', action);
         const data = action.notification.data;
@@ -141,35 +135,40 @@ export const usePushNotifications = () => {
     };
   }, [isNative, user, platform]);
 
-  // Web push service worker helper
-  const waitForServiceWorker = async (): Promise<ServiceWorkerRegistration> => {
-    let registration = await navigator.serviceWorker.getRegistration('/sw.js');
+  // Register service worker for web push
+  const registerServiceWorker = async (): Promise<ServiceWorkerRegistration> => {
+    console.log('[Push] Registering service worker...');
     
-    if (!registration) {
-      console.log('[Push] No existing registration, registering new service worker...');
-      registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    // Unregister existing service workers first
+    const existingRegs = await navigator.serviceWorker.getRegistrations();
+    for (const reg of existingRegs) {
+      if (reg.scope.includes('/')) {
+        console.log('[Push] Unregistering existing SW:', reg.scope);
+        await reg.unregister();
+      }
     }
     
-    console.log('[Push] Service worker registration state:', registration.active?.state || 'no active worker');
-
-    if (registration.waiting) {
-      console.log('[Push] Skipping waiting service worker...');
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-    }
-
+    // Register fresh service worker
+    const registration = await navigator.serviceWorker.register('/sw.js', { 
+      scope: '/',
+      updateViaCache: 'none'
+    });
+    
+    console.log('[Push] SW registered, state:', registration.active?.state);
+    
+    // Wait for it to be ready
     if (registration.installing) {
-      console.log('[Push] Waiting for service worker to install...');
       await new Promise<void>((resolve) => {
-        registration!.installing!.addEventListener('statechange', function handler(e) {
+        registration.installing!.addEventListener('statechange', (e) => {
           if ((e.target as ServiceWorker).state === 'activated') {
             resolve();
           }
         });
       });
     }
-
+    
     await navigator.serviceWorker.ready;
-    console.log('[Push] Service worker is ready');
+    console.log('[Push] Service worker ready');
     
     return registration;
   };
@@ -180,11 +179,10 @@ export const usePushNotifications = () => {
     if (!isSupported) return { error: 'Push notifications not supported' };
     
     setIsLoading(true);
-    console.log('[Push] Starting subscription process...', isNative ? `Native (${platform})` : 'Web');
+    console.log('[Push] Starting subscription...', isNative ? `Native (${platform})` : 'Web');
 
     try {
       if (isNative) {
-        // Native push notifications via FCM
         const permResult = await PushNotifications.checkPermissions();
         console.log('[FCM] Current permission:', permResult.receive);
         
@@ -204,8 +202,6 @@ export const usePushNotifications = () => {
         }
 
         setPermission('granted');
-        
-        // Register for push notifications - this triggers the 'registration' listener
         await PushNotifications.register();
         console.log('[FCM] Registration triggered');
         
@@ -220,42 +216,43 @@ export const usePushNotifications = () => {
 
         if (permissionResult !== 'granted') {
           setIsLoading(false);
+          toast.error('Notification permission denied');
           return { error: 'Permission denied' };
         }
 
-        // Get or register service worker
-        console.log('[Push] Getting service worker registration...');
-        const registration = await waitForServiceWorker();
+        // Register service worker
+        const registration = await registerServiceWorker();
 
-        // Get VAPID public key from edge function
+        // Get VAPID public key
         console.log('[Push] Fetching VAPID key...');
         const { data: vapidData, error: vapidError } = await supabase.functions.invoke('push-notifications', {
           body: { action: 'get-vapid-key' }
         });
 
         if (vapidError || !vapidData?.publicKey) {
-          console.error('[Push] VAPID key error:', vapidError);
+          console.error('[Push] VAPID key error:', vapidError, vapidData);
           setIsLoading(false);
+          toast.error('Could not get notification key from server');
           return { error: 'Could not get notification key from server' };
         }
 
-        console.log('[Push] VAPID key received, length:', vapidData.publicKey.length);
+        console.log('[Push] VAPID key received');
 
-        // Convert VAPID key and subscribe
+        // Convert VAPID key
         const vapidKey = urlBase64ToUint8Array(vapidData.publicKey);
-        console.log('[Push] Subscribing to push manager...');
         
-        // Check if already subscribed
-        let subscription = await registration.pushManager.getSubscription();
-        
-        if (subscription) {
-          console.log('[Push] Already subscribed, unsubscribing first...');
-          await subscription.unsubscribe();
+        // Unsubscribe from existing if any
+        const existingSub = await registration.pushManager.getSubscription();
+        if (existingSub) {
+          console.log('[Push] Unsubscribing from existing subscription');
+          await existingSub.unsubscribe();
         }
 
-        subscription = await registration.pushManager.subscribe({
+        // Subscribe to push manager
+        console.log('[Push] Subscribing to push manager...');
+        const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: new Uint8Array(vapidKey)
+          applicationServerKey: vapidKey.buffer as ArrayBuffer
         });
 
         console.log('[Push] Subscription created:', subscription.endpoint.substring(0, 50) + '...');
@@ -279,29 +276,44 @@ export const usePushNotifications = () => {
           console.error('[Push] Database error:', dbError);
           await subscription.unsubscribe();
           setIsLoading(false);
+          toast.error('Failed to save subscription');
           return { error: 'Failed to save subscription' };
         }
 
         console.log('[Push] Subscription saved successfully!');
         setIsSubscribed(true);
         setIsLoading(false);
+        toast.success('Notifications enabled!');
         return { success: true };
       }
     } catch (error) {
       console.error('[Push] Subscription error:', error);
       setIsLoading(false);
       
-      if (error instanceof Error) {
-        if (error.message.includes('permission')) {
-          return { error: 'Permission denied' };
-        }
-        if (error.message.includes('network')) {
-          return { error: 'Network error, please try again' };
-        }
-        return { error: error.message };
-      }
-      
-      return { error: 'Failed to subscribe to notifications' };
+      const message = error instanceof Error ? error.message : 'Failed to subscribe';
+      toast.error(message);
+      return { error: message };
+    }
+  };
+
+  // Send test notification
+  const sendTestNotification = async () => {
+    if (!user) return;
+    
+    console.log('[Push] Sending test notification...');
+    
+    const { data, error } = await supabase.functions.invoke('push-notifications', {
+      body: { action: 'send-test', userId: user.id }
+    });
+
+    console.log('[Push] Test result:', data, error);
+    
+    if (error) {
+      toast.error('Failed to send test notification');
+    } else if (data?.success) {
+      toast.success('Test notification sent!');
+    } else {
+      toast.error(data?.reason || 'No subscriptions found');
     }
   };
 
@@ -314,19 +326,16 @@ export const usePushNotifications = () => {
 
     try {
       if (isNative) {
-        // Remove FCM tokens for native
         await supabase
           .from('fcm_tokens')
           .delete()
           .eq('user_id', user.id);
       } else {
-        // Remove web push subscriptions
         await supabase
           .from('push_subscriptions')
           .delete()
           .eq('user_id', user.id);
 
-        // Also unsubscribe from push manager
         const registration = await navigator.serviceWorker.ready;
         const subscription = await registration.pushManager.getSubscription();
         
@@ -337,8 +346,10 @@ export const usePushNotifications = () => {
 
       console.log('[Push] Unsubscribed successfully');
       setIsSubscribed(false);
+      toast.success('Notifications disabled');
     } catch (error) {
       console.error('[Push] Error unsubscribing:', error);
+      toast.error('Failed to unsubscribe');
     } finally {
       setIsLoading(false);
     }
@@ -351,7 +362,8 @@ export const usePushNotifications = () => {
     permission,
     isNative,
     subscribe,
-    unsubscribe
+    unsubscribe,
+    sendTestNotification
   };
 };
 

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Bell, X } from 'lucide-react';
+import { Bell, X, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { hapticFeedback } from '@/utils/nativeApp';
 
 const NotificationPrompt = () => {
-  const { isSupported, isSubscribed, permission, subscribe, isLoading } = usePushNotifications();
+  const { isSupported, isSubscribed, permission, subscribe, isLoading, sendTestNotification } = usePushNotifications();
   const [dismissed, setDismissed] = useState(false);
   const [show, setShow] = useState(false);
 
@@ -29,6 +29,10 @@ const NotificationPrompt = () => {
     const result = await subscribe();
     if (result.success) {
       setShow(false);
+      // Send a test notification after enabling
+      setTimeout(() => {
+        sendTestNotification();
+      }, 1000);
     }
   };
 

@@ -14,19 +14,19 @@ interface NotificationPayload {
   data?: Record<string, any>;
 }
 
-// URL-safe base64 encode/decode
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  return new Uint8Array([...rawData].map(char => char.charCodeAt(0)));
-}
-
-function uint8ArrayToUrlBase64(uint8Array: Uint8Array): string {
-  return btoa(String.fromCharCode(...uint8Array))
+// URL-safe base64 encoding/decoding
+function base64UrlEncode(data: Uint8Array): string {
+  return btoa(String.fromCharCode(...data))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=/g, '');
+}
+
+function base64UrlDecode(str: string): Uint8Array {
+  const padding = '='.repeat((4 - str.length % 4) % 4);
+  const base64 = (str + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return new Uint8Array([...rawData].map(char => char.charCodeAt(0)));
 }
 
 // Send FCM notification to native apps
@@ -79,7 +79,10 @@ async function sendFCMNotification(
   }
 }
 
-// Simple web push without encryption (relies on HTTPS transport security)
+// Note: Full Web Push encryption requires complex crypto operations
+// For now, we rely on FCM for reliable push delivery
+
+// Send Web Push notification using a simple approach
 async function sendWebPush(
   endpoint: string,
   p256dhKey: string,
@@ -90,50 +93,19 @@ async function sendWebPush(
 ): Promise<{ success: boolean; error?: string; status?: number }> {
   try {
     console.log('[WebPush] Sending to:', endpoint.substring(0, 60) + '...');
-
-    const endpointUrl = new URL(endpoint);
-    const audience = endpointUrl.origin;
-
-    // Create VAPID JWT header
-    const header = { typ: 'JWT', alg: 'ES256' };
-    const now = Math.floor(Date.now() / 1000);
-    const jwtPayload = {
-      aud: audience,
-      exp: now + 12 * 60 * 60, // 12 hours
-      sub: 'mailto:notifications@woup.app',
-    };
-
-    const headerB64 = uint8ArrayToUrlBase64(new TextEncoder().encode(JSON.stringify(header)));
-    const payloadB64 = uint8ArrayToUrlBase64(new TextEncoder().encode(JSON.stringify(jwtPayload)));
-    const unsignedToken = `${headerB64}.${payloadB64}`;
-
-    // Import VAPID private key and sign
-    const privateKeyBytes = urlBase64ToUint8Array(vapidPrivateKey);
     
-    // Convert raw private key to PKCS8 format for P-256
-    const pkcs8Header = new Uint8Array([
-      0x30, 0x81, 0x87, 0x02, 0x01, 0x00, 0x30, 0x13,
-      0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02,
-      0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d,
-      0x03, 0x01, 0x07, 0x04, 0x6d, 0x30, 0x6b, 0x02,
-      0x01, 0x01, 0x04, 0x20
-    ]);
-    const pkcs8Footer = new Uint8Array([
-      0xa1, 0x44, 0x03, 0x42, 0x00, 0x04
-    ]);
-    
-    // For now, use a simpler approach - just send the notification without encryption
-    // Chrome will accept unencrypted payloads over HTTPS for testing
-    const notificationPayload = JSON.stringify(payload);
+    // For now, send without encryption (Chrome may reject, but it's for debugging)
+    // A proper implementation would require full Web Push encryption (RFC 8291)
+    const payloadString = JSON.stringify(payload);
     
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/octet-stream',
         'TTL': '86400',
         'Urgency': 'high',
       },
-      body: notificationPayload,
+      body: new TextEncoder().encode(payloadString),
     });
 
     console.log('[WebPush] Response status:', response.status);
@@ -202,6 +174,8 @@ serve(async (req) => {
 
     let fcmSent = 0;
     let webSent = 0;
+    let fcmTotal = 0;
+    let webTotal = 0;
 
     // Log notification to database
     await supabase.from('notification_logs').insert({
@@ -224,6 +198,7 @@ serve(async (req) => {
       }
 
       if (!fcmError && fcmTokens?.length) {
+        fcmTotal = fcmTokens.length;
         console.log(`[SendNotification] Found ${fcmTokens.length} FCM tokens`);
         
         for (const tokenRecord of fcmTokens) {
@@ -243,77 +218,84 @@ serve(async (req) => {
           }
         }
       }
+    } else {
+      console.log('[SendNotification] FCM_SERVER_KEY not configured');
     }
 
     // Send to web push subscriptions
-    if (VAPID_PRIVATE_KEY && VAPID_PUBLIC_KEY) {
-      const { data: subscriptions, error: subError } = await supabase
-        .from('push_subscriptions')
-        .select('*')
-        .eq('user_id', user_id);
+    const { data: subscriptions, error: subError } = await supabase
+      .from('push_subscriptions')
+      .select('*')
+      .eq('user_id', user_id);
 
-      if (subError) {
-        console.error('[SendNotification] Web subscriptions query error:', subError);
-      }
+    if (subError) {
+      console.error('[SendNotification] Web subscriptions query error:', subError);
+    }
 
-      if (!subError && subscriptions?.length) {
-        console.log(`[SendNotification] Found ${subscriptions.length} web push subscriptions`);
-        
-        const notificationPayload = {
-          title,
-          body,
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          tag: `${type}-${Date.now()}`,
-          renotify: true,
-          requireInteraction: false,
-          data: { type, url: '/', ...data },
-        };
+    if (!subError && subscriptions?.length) {
+      webTotal = subscriptions.length;
+      console.log(`[SendNotification] Found ${subscriptions.length} web push subscriptions`);
+      
+      const notificationPayload = {
+        title,
+        body,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: `${type}-${Date.now()}`,
+        renotify: true,
+        requireInteraction: false,
+        data: { type, url: '/', ...data },
+      };
 
-        for (const sub of subscriptions) {
-          const result = await sendWebPush(
-            sub.endpoint,
-            sub.p256dh_key,
-            sub.auth_key,
-            notificationPayload,
-            VAPID_PUBLIC_KEY,
-            VAPID_PRIVATE_KEY
-          );
+      for (const sub of subscriptions) {
+        const result = await sendWebPush(
+          sub.endpoint,
+          sub.p256dh_key,
+          sub.auth_key,
+          notificationPayload,
+          VAPID_PUBLIC_KEY || '',
+          VAPID_PRIVATE_KEY || ''
+        );
 
-          if (result.success) {
-            webSent++;
-          } else if (result.error === 'subscription_expired') {
-            console.log('[SendNotification] Removing expired web subscription');
-            await supabase.from('push_subscriptions').delete().eq('id', sub.id);
-          }
+        if (result.success) {
+          webSent++;
+        } else if (result.error === 'subscription_expired') {
+          console.log('[SendNotification] Removing expired web subscription');
+          await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+        } else {
+          console.log('[SendNotification] Web push failed:', result.error);
         }
       }
     } else {
-      console.log('[SendNotification] VAPID keys not configured');
+      console.log(`[SendNotification] No web subscriptions found for user ${user_id}`);
     }
 
     const totalSent = fcmSent + webSent;
+    const totalTargets = fcmTotal + webTotal;
     
     // Update notification log status
     await supabase.from('notification_logs')
-      .update({ status: totalSent > 0 ? 'sent' : 'no_subscriptions' })
+      .update({ 
+        status: totalSent > 0 ? 'sent' : (totalTargets > 0 ? 'failed' : 'no_subscriptions'),
+        error_message: totalSent === 0 && totalTargets > 0 ? 'All delivery attempts failed' : null
+      })
       .eq('user_id', user_id)
       .eq('notification_type', type)
       .order('created_at', { ascending: false })
       .limit(1);
     
-    if (totalSent === 0) {
-      console.log(`[SendNotification] No valid subscriptions found for user ${user_id}`);
+    if (totalTargets === 0) {
+      console.log(`[SendNotification] No subscriptions found for user ${user_id}`);
       return new Response(
-        JSON.stringify({ success: false, reason: 'no_subscriptions' }),
+        JSON.stringify({ success: false, reason: 'no_subscriptions', fcmTotal: 0, webTotal: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[SendNotification] Sent ${webSent} web + ${fcmSent} FCM = ${totalSent} total`);
+    console.log(`[SendNotification] Sent ${webSent}/${webTotal} web + ${fcmSent}/${fcmTotal} FCM`);
 
     return new Response(
-      JSON.stringify({ success: true, sent: totalSent, webSent, fcmSent }),
+      JSON.stringify({ success: totalSent > 0, sent: totalSent, webSent, fcmSent, webTotal, fcmTotal }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
