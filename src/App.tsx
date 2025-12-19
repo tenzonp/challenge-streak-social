@@ -15,6 +15,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const UpdatePassword = lazy(() => import("./pages/UpdatePassword"));
 const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
 const NotificationAdmin = lazy(() => import("./pages/NotificationAdmin"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 const BlockedUsers = lazy(() => import("./pages/BlockedUsers"));
 const Settings = lazy(() => import("./pages/Settings"));
 const PrivacySettings = lazy(() => import("./pages/PrivacySettings"));
@@ -59,7 +60,8 @@ const App = () => {
                 <Route path="/invite" element={<Invite />} />
                 <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
                 <Route path="/update-password" element={<AuthProvider><UpdatePassword /></AuthProvider>} />
-                <Route path="/notifications" element={<AuthProvider><NotificationSettings /></AuthProvider>} />
+                <Route path="/notification-settings" element={<AuthProvider><NotificationSettings /></AuthProvider>} />
+                <Route path="/notifications" element={<AuthProvider><Notifications /></AuthProvider>} />
                 <Route path="/admin/notifications" element={<AuthProvider><NotificationAdmin /></AuthProvider>} />
                 <Route path="/settings" element={<AuthProvider><Settings /></AuthProvider>} />
                 <Route path="/settings/blocked" element={<AuthProvider><BlockedUsers /></AuthProvider>} />

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { Home, Search, Plus, Bell, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hapticFeedback } from '@/utils/nativeApp';
@@ -13,6 +14,8 @@ interface BottomNavProps {
 }
 
 const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel, pendingCount = 0 }: BottomNavProps) => {
+  const navigate = useNavigate();
+
   const handleTabChange = (tab: Tab) => {
     hapticFeedback('light');
     onTabChange(tab);
@@ -21,6 +24,11 @@ const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel, pendingC
   const handleCreate = () => {
     hapticFeedback('medium');
     onSpinWheel();
+  };
+
+  const handleNotifications = () => {
+    hapticFeedback('light');
+    navigate('/notifications');
   };
 
   return (
@@ -58,17 +66,14 @@ const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel, pendingC
           </div>
         </button>
 
-        {/* Notifications - moved here */}
+        {/* Notifications */}
         <button
-          onClick={() => handleTabChange('challenges')}
-          className={cn(
-            "flex flex-col items-center gap-0.5 p-2 transition-all active:scale-90 relative",
-            "text-muted-foreground"
-          )}
+          onClick={handleNotifications}
+          className="flex flex-col items-center gap-0.5 p-2 transition-all active:scale-90 relative text-muted-foreground"
         >
           <Bell className="w-6 h-6" strokeWidth={1.5} />
           {pendingCount > 0 && (
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-accent-red" />
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />
           )}
         </button>
 
