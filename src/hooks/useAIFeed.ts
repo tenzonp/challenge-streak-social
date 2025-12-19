@@ -1,48 +1,69 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ChallengeResponse } from '@/hooks/useChallenges';
+
+const PAGE_SIZE = 15;
 
 export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<ChallengeResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
+  const blockedIdsRef = useRef<string[]>([]);
+  const friendIdsRef = useRef<string[]>([]);
 
-  const fetchFeed = useCallback(async () => {
+  const fetchFeed = useCallback(async (cursor?: string, append = false) => {
     if (!user) return;
-    setLoading(true);
+    
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setPosts([]);
+    }
 
     try {
-      // Batch initial queries for better performance
-      const [viewedResult, blockedResult, friendsResult] = await Promise.all([
-        supabase
-          .from('viewed_posts' as any)
-          .select('response_id')
-          .eq('user_id', user.id)
-          .limit(200), // Limit viewed posts check
-        supabase
-          .from('friendships')
-          .select('user_id, friend_id, status')
-          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
-          .eq('status', 'blocked'),
-        feedType === 'friends' 
-          ? supabase
-              .from('friendships')
-              .select('friend_id, user_id')
-              .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
-              .eq('status', 'accepted')
-          : Promise.resolve({ data: null })
-      ]);
+      // Only fetch setup data on initial load
+      if (!append) {
+        const [viewedResult, blockedResult, friendsResult] = await Promise.all([
+          supabase
+            .from('viewed_posts' as any)
+            .select('response_id')
+            .eq('user_id', user.id)
+            .limit(200),
+          supabase
+            .from('friendships')
+            .select('user_id, friend_id, status')
+            .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
+            .eq('status', 'blocked'),
+          feedType === 'friends' 
+            ? supabase
+                .from('friendships')
+                .select('friend_id, user_id')
+                .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
+                .eq('status', 'accepted')
+            : Promise.resolve({ data: null })
+        ]);
 
-      const viewedSet = new Set((viewedResult.data || []).map((v: any) => v.response_id));
-      setViewedIds(viewedSet);
+        const viewedSet = new Set((viewedResult.data || []).map((v: any) => v.response_id));
+        setViewedIds(viewedSet);
 
-      const blockedIds = (blockedResult.data || [])
-        .map(b => (b.user_id === user.id ? b.friend_id : b.user_id))
-        .filter(id => id !== user.id);
+        blockedIdsRef.current = (blockedResult.data || [])
+          .map(b => (b.user_id === user.id ? b.friend_id : b.user_id))
+          .filter(id => id !== user.id);
 
-      // Build query with reduced data
+        if (feedType === 'friends' && friendsResult.data) {
+          friendIdsRef.current = (friendsResult.data || []).map((f: any) => 
+            f.user_id === user.id ? f.friend_id : f.user_id
+          );
+          friendIdsRef.current.push(user.id);
+        }
+      }
+
+      // Build query
       let query = supabase
         .from('challenge_responses')
         .select(`
@@ -60,51 +81,67 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
           reactions(user_id, emoji)
         `)
         .order('created_at', { ascending: false })
-        .limit(30); // Reduced limit for performance
+        .limit(PAGE_SIZE + 1); // Fetch one extra to check if there's more
 
-      if (blockedIds.length > 0) {
-        query = query.not('user_id', 'in', `(${blockedIds.join(',')})`);
+      if (cursor) {
+        query = query.lt('created_at', cursor);
       }
 
-      // For friends feed, filter by friends
-      if (feedType === 'friends' && friendsResult.data) {
-        const friendIds = (friendsResult.data || []).map((f: any) => 
-          f.user_id === user.id ? f.friend_id : f.user_id
-        );
-        friendIds.push(user.id);
+      if (blockedIdsRef.current.length > 0) {
+        query = query.not('user_id', 'in', `(${blockedIdsRef.current.join(',')})`);
+      }
 
-        if (friendIds.length > 0) {
-          query = query.in('user_id', friendIds);
-        }
+      if (feedType === 'friends' && friendIdsRef.current.length > 0) {
+        query = query.in('user_id', friendIdsRef.current);
       }
 
       const { data: postsData, error } = await query;
 
       if (error) {
         console.error('Error fetching feed:', error);
-        setLoading(false);
         return;
       }
 
-      // Skip AI recommendations for performance - use simple sort
-      const sortedPosts = [...(postsData || [])].sort((a, b) => {
-        const aViewed = viewedSet.has(a.id);
-        const bViewed = viewedSet.has(b.id);
-        if (!aViewed && bViewed) return -1;
-        if (aViewed && !bViewed) return 1;
-        
-        const aScore = (a.reactions?.length || 0) * 2 + (new Date(a.created_at).getTime() / 1e12);
-        const bScore = (b.reactions?.length || 0) * 2 + (new Date(b.created_at).getTime() / 1e12);
-        return bScore - aScore;
-      });
-      setPosts(sortedPosts as unknown as ChallengeResponse[]);
+      const fetchedPosts = postsData || [];
+      const hasMorePosts = fetchedPosts.length > PAGE_SIZE;
+      setHasMore(hasMorePosts);
+
+      // Remove the extra post used for checking
+      const postsToAdd = hasMorePosts ? fetchedPosts.slice(0, PAGE_SIZE) : fetchedPosts;
+
+      if (append) {
+        setPosts(prev => [...prev, ...postsToAdd] as ChallengeResponse[]);
+      } else {
+        // Sort initial posts
+        const sortedPosts = [...postsToAdd].sort((a, b) => {
+          const aViewed = viewedIds.has(a.id);
+          const bViewed = viewedIds.has(b.id);
+          if (!aViewed && bViewed) return -1;
+          if (aViewed && !bViewed) return 1;
+          
+          const aScore = (a.reactions?.length || 0) * 2 + (new Date(a.created_at).getTime() / 1e12);
+          const bScore = (b.reactions?.length || 0) * 2 + (new Date(b.created_at).getTime() / 1e12);
+          return bScore - aScore;
+        });
+        setPosts(sortedPosts as unknown as ChallengeResponse[]);
+      }
 
     } catch (e) {
       console.error('Feed fetch error:', e);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [user, feedType]);
+  }, [user, feedType, viewedIds]);
+
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore || posts.length === 0) return;
+    
+    const lastPost = posts[posts.length - 1];
+    if (lastPost?.created_at) {
+      fetchFeed(lastPost.created_at, true);
+    }
+  }, [posts, loadingMore, hasMore, fetchFeed]);
 
   useEffect(() => {
     fetchFeed();
@@ -120,7 +157,6 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
       response_id: responseId,
     } as any);
 
-    // Update engagement
     const { data: existing } = await supabase
       .from('post_engagement' as any)
       .select('*')
@@ -152,7 +188,6 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
       });
 
     if (!error) {
-      // Update engagement
       const { data: existing } = await supabase
         .from('post_engagement' as any)
         .select('*')
@@ -171,7 +206,6 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
         } as any);
       }
 
-      // Optimistically update local state
       setPosts(prev => prev.map(p => 
         p.id === responseId 
           ? { ...p, reactions: [...(p.reactions || []), { user_id: user.id, emoji }] }
@@ -185,7 +219,10 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
   return { 
     posts, 
     loading, 
-    refetch: fetchFeed, 
+    loadingMore,
+    hasMore,
+    refetch: () => fetchFeed(), 
+    loadMore,
     addReaction, 
     markAsViewed,
   };
