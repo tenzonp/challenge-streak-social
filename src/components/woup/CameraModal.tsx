@@ -88,6 +88,10 @@ const CameraModal = ({ challenge, onClose, onSubmit }: CameraModalProps) => {
     if (step === 'camera-front') {
       setFrontPhoto(photo);
       setStep('camera-back');
+      // Auto-flip camera to back after front photo
+      if (!isNative) {
+        await switchCamera();
+      }
     } else if (step === 'camera-back') {
       setBackPhoto(photo);
       stopCamera();
