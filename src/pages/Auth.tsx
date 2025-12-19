@@ -518,84 +518,48 @@ const Auth = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Animated background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div 
-          className="absolute top-20 left-10 w-32 h-32 rounded-full bg-neon-pink/20 blur-3xl"
-          animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-          transition={{ duration: 4, repeat: Infinity }}
-        />
-        <motion.div 
-          className="absolute bottom-32 right-10 w-40 h-40 rounded-full bg-neon-cyan/20 blur-3xl"
-          animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.6, 0.4] }}
-          transition={{ duration: 5, repeat: Infinity }}
-        />
-        <motion.div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-neon-green/10 blur-3xl"
-          animate={{ scale: [1, 1.3, 1], rotate: [0, 180, 360] }}
-          transition={{ duration: 8, repeat: Infinity }}
-        />
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+      {/* Logo */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-12 h-12 rounded-2xl bg-foreground flex items-center justify-center">
+            <Zap className="w-6 h-6 text-background" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight">woup</h1>
+        </div>
+        <p className="text-muted-foreground text-center text-sm">challenge your friends</p>
       </div>
 
-      {/* Logo */}
-      <motion.div 
-        className="mb-8 relative z-10"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-14 h-14 rounded-3xl bg-gradient-to-br from-neon-pink via-primary to-neon-cyan flex items-center justify-center shadow-2xl">
-            <Zap className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-4xl font-black tracking-tight bg-gradient-to-r from-primary via-neon-pink to-neon-cyan bg-clip-text text-transparent">
-            woup
-          </h1>
-        </div>
-        <p className="text-muted-foreground text-center text-sm">challenge your friends ⚡</p>
-      </motion.div>
-
       {/* Features preview */}
-      <motion.div 
-        className="flex gap-3 mb-8 relative z-10"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
+      <div className="flex gap-2 mb-8">
         {[
-          { icon: Flame, label: 'streaks', color: 'text-neon-pink' },
-          { icon: Trophy, label: 'compete', color: 'text-neon-cyan' },
-          { icon: Sparkles, label: 'vibes', color: 'text-primary' },
-        ].map((feature, i) => (
-          <div key={feature.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full glass text-xs">
-            <feature.icon className={`w-3.5 h-3.5 ${feature.color}`} />
+          { icon: Flame, label: 'streaks' },
+          { icon: Trophy, label: 'compete' },
+          { icon: Sparkles, label: 'vibes' },
+        ].map((feature) => (
+          <div key={feature.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs">
+            <feature.icon className="w-3.5 h-3.5" />
             <span>{feature.label}</span>
           </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Auth Form */}
-      <motion.div 
-        className="w-full max-w-sm glass-strong rounded-4xl p-6 relative z-10"
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.3 }}
-      >
+      <div className="w-full max-w-sm bg-card rounded-2xl p-6 border border-border">
         {/* Toggle */}
-        <div className="flex gap-2 p-1 rounded-2xl bg-muted/50 mb-6">
+        <div className="flex gap-2 p-1 rounded-xl bg-muted mb-6">
           <button
             onClick={() => { setIsLogin(true); setErrors({}); }}
-            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
-              isLogin ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground'
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all active:scale-95 ${
+              isLogin ? 'bg-foreground text-background' : 'text-muted-foreground'
             }`}
           >
             login
           </button>
           <button
             onClick={() => { setIsLogin(false); setErrors({}); }}
-            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
-              !isLogin ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground'
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all active:scale-95 ${
+              !isLogin ? 'bg-foreground text-background' : 'text-muted-foreground'
             }`}
           >
             sign up
@@ -610,7 +574,7 @@ const Auth = () => {
                 placeholder="8-digit user id"
                 value={userCode}
                 onChange={(e) => setUserCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all font-mono text-center text-lg tracking-widest"
+                className="w-full p-3.5 rounded-xl bg-muted border border-border focus:border-foreground/50 outline-none transition-all font-mono text-center tracking-widest"
                 maxLength={8}
                 inputMode="numeric"
               />
@@ -623,7 +587,7 @@ const Auth = () => {
                 placeholder="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all pr-12"
+                className="w-full p-3.5 rounded-xl bg-muted border border-border focus:border-foreground/50 outline-none transition-all pr-12"
                 maxLength={100}
               />
               <button
@@ -638,14 +602,13 @@ const Auth = () => {
 
             <Button 
               type="submit" 
-              variant="neon" 
-              className="w-full h-12 text-base font-bold"
+              className="w-full h-11 font-semibold active:scale-[0.98] transition-transform"
               disabled={loading}
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                "let's go! 🚀"
+                "let's go!"
               )}
             </Button>
           </form>
@@ -657,7 +620,7 @@ const Auth = () => {
                 placeholder="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
+                className="w-full p-3.5 rounded-xl bg-muted border border-border focus:border-foreground/50 outline-none transition-all"
                 maxLength={30}
               />
               {errors.username && <p className="text-destructive text-xs mt-1">{errors.username}</p>}
@@ -669,7 +632,7 @@ const Auth = () => {
                 placeholder="display name"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
+                className="w-full p-3.5 rounded-xl bg-muted border border-border focus:border-foreground/50 outline-none transition-all"
                 maxLength={50}
               />
               {errors.displayName && <p className="text-destructive text-xs mt-1">{errors.displayName}</p>}
@@ -681,7 +644,7 @@ const Auth = () => {
                 placeholder="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all pr-12"
+                className="w-full p-3.5 rounded-xl bg-muted border border-border focus:border-foreground/50 outline-none transition-all pr-12"
                 maxLength={100}
               />
               <button
@@ -696,29 +659,23 @@ const Auth = () => {
 
             <Button 
               type="submit" 
-              variant="neon" 
-              className="w-full h-12 text-base font-bold"
+              className="w-full h-11 font-semibold active:scale-[0.98] transition-transform"
               disabled={loading}
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                "create account ✨"
+                "create account"
               )}
             </Button>
           </form>
         )}
-      </motion.div>
+      </div>
 
       {/* Footer */}
-      <motion.p 
-        className="mt-6 text-xs text-muted-foreground text-center relative z-10"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
-      >
-        by joining you agree to our vibes ✌️
-      </motion.p>
+      <p className="mt-6 text-xs text-muted-foreground text-center">
+        by joining you agree to our terms
+      </p>
     </div>
   );
 };

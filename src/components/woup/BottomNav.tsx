@@ -1,4 +1,4 @@
-import { Home, Zap, User, Plus, Search } from 'lucide-react';
+import { Home, Search, Plus, Bell, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hapticFeedback } from '@/utils/nativeApp';
 
@@ -9,9 +9,10 @@ interface BottomNavProps {
   onTabChange: (tab: Tab) => void;
   onCreatePost: () => void;
   onSpinWheel: () => void;
+  pendingCount?: number;
 }
 
-const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel }: BottomNavProps) => {
+const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel, pendingCount = 0 }: BottomNavProps) => {
   const handleTabChange = (tab: Tab) => {
     hapticFeedback('light');
     onTabChange(tab);
@@ -29,7 +30,7 @@ const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel }: Bottom
         <button
           onClick={() => handleTabChange('feed')}
           className={cn(
-            "flex flex-col items-center gap-0.5 p-2 transition-colors",
+            "flex flex-col items-center gap-0.5 p-2 transition-all active:scale-90",
             activeTab === 'feed' ? "text-foreground" : "text-muted-foreground"
           )}
         >
@@ -40,7 +41,7 @@ const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel }: Bottom
         <button
           onClick={() => handleTabChange('challenges')}
           className={cn(
-            "flex flex-col items-center gap-0.5 p-2 transition-colors",
+            "flex flex-col items-center gap-0.5 p-2 transition-all active:scale-90",
             activeTab === 'challenges' ? "text-foreground" : "text-muted-foreground"
           )}
         >
@@ -50,29 +51,32 @@ const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel }: Bottom
         {/* Create */}
         <button
           onClick={handleCreate}
-          className="flex items-center justify-center p-2 -mt-2"
+          className="flex items-center justify-center p-2 -mt-2 active:scale-90 transition-transform"
         >
           <div className="w-10 h-10 rounded-lg bg-foreground flex items-center justify-center">
             <Plus className="w-6 h-6 text-background" strokeWidth={2} />
           </div>
         </button>
 
-        {/* Activity */}
+        {/* Notifications - moved here */}
         <button
           onClick={() => handleTabChange('challenges')}
           className={cn(
-            "flex flex-col items-center gap-0.5 p-2 transition-colors",
+            "flex flex-col items-center gap-0.5 p-2 transition-all active:scale-90 relative",
             "text-muted-foreground"
           )}
         >
-          <Zap className="w-6 h-6" strokeWidth={1.5} />
+          <Bell className="w-6 h-6" strokeWidth={1.5} />
+          {pendingCount > 0 && (
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-accent-red" />
+          )}
         </button>
 
         {/* Profile */}
         <button
           onClick={() => handleTabChange('profile')}
           className={cn(
-            "flex flex-col items-center gap-0.5 p-2 transition-colors",
+            "flex flex-col items-center gap-0.5 p-2 transition-all active:scale-90",
             activeTab === 'profile' ? "text-foreground" : "text-muted-foreground"
           )}
         >

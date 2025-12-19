@@ -1,7 +1,6 @@
-import { Bell, User, MessageCircle, Zap, UserPlus } from 'lucide-react';
+import { User, MessageCircle, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useProfile } from '@/hooks/useProfile';
-import { useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
   onProfileClick: () => void;
@@ -21,7 +20,6 @@ const Header = ({
   onFriendRequestsClick,
 }: HeaderProps) => {
   const { profile } = useProfile();
-  const navigate = useNavigate();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border pt-safe">
@@ -37,7 +35,7 @@ const Header = ({
 
           {/* Friend Requests */}
           {onFriendRequestsClick && (
-            <Button variant="ghost" size="icon" className="relative" onClick={onFriendRequestsClick}>
+            <Button variant="ghost" size="icon" className="relative active:scale-95 transition-transform" onClick={onFriendRequestsClick}>
               <UserPlus className="w-5 h-5" />
               {friendRequestsCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-accent-red text-[10px] font-bold flex items-center justify-center text-white">
@@ -49,7 +47,7 @@ const Header = ({
 
           {/* Messages */}
           {onMessagesClick && (
-            <Button variant="ghost" size="icon" className="relative" onClick={onMessagesClick}>
+            <Button variant="ghost" size="icon" className="relative active:scale-95 transition-transform" onClick={onMessagesClick}>
               <MessageCircle className="w-5 h-5" />
               {unreadMessages > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-accent-blue text-[10px] font-bold flex items-center justify-center text-white">
@@ -59,18 +57,8 @@ const Header = ({
             </Button>
           )}
 
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/notifications')}>
-            <Zap className="w-5 h-5" />
-            {pendingCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-accent-red text-[10px] font-bold flex items-center justify-center text-white">
-                {pendingCount}
-              </span>
-            )}
-          </Button>
-
           {/* Profile */}
-          <Button variant="ghost" size="icon" onClick={onProfileClick}>
+          <Button variant="ghost" size="icon" className="active:scale-95 transition-transform" onClick={onProfileClick}>
             {profile?.avatar_url ? (
               <img
                 src={profile.avatar_url}
