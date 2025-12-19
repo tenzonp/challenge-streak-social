@@ -26,6 +26,7 @@ import SuggestedFriends from '@/components/woup/SuggestedFriends';
 import PostDetailModal from '@/components/woup/PostDetailModal';
 import AllPostsModal from '@/components/woup/AllPostsModal';
 import SpinWheelModal from '@/components/woup/SpinWheelModal';
+import NotificationPrompt from '@/components/woup/NotificationPrompt';
 import { AchievementUnlockModal } from '@/components/woup/AchievementBadge';
 import { DayStreakCounter } from '@/components/woup/StreakBadges';
 import { ChallengeResponse } from '@/hooks/useChallenges';
@@ -530,6 +531,9 @@ const Index = () => {
           onViewProfile={(user) => { setShowFriendRequests(false); handleViewProfile(user); }}
         />
       )}
+      
+      {/* Notification Prompt */}
+      <NotificationPrompt />
     </div>
   );
 };
