@@ -11,18 +11,22 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
+  const viewedIdsRef = useRef<Set<string>>(new Set());
   const blockedIdsRef = useRef<string[]>([]);
   const friendIdsRef = useRef<string[]>([]);
+  const fetchedRef = useRef(false);
 
   const fetchFeed = useCallback(async (cursor?: string, append = false) => {
     if (!user) return;
+    
+    // Prevent double fetch on mount
+    if (!append && fetchedRef.current) return;
+    if (!append) fetchedRef.current = true;
     
     if (append) {
       setLoadingMore(true);
     } else {
       setLoading(true);
-      setPosts([]);
     }
 
     try {
@@ -48,8 +52,7 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
             : Promise.resolve({ data: null })
         ]);
 
-        const viewedSet = new Set((viewedResult.data || []).map((v: any) => v.response_id));
-        setViewedIds(viewedSet);
+        viewedIdsRef.current = new Set((viewedResult.data || []).map((v: any) => v.response_id));
 
         blockedIdsRef.current = (blockedResult.data || [])
           .map(b => (b.user_id === user.id ? b.friend_id : b.user_id))
@@ -81,7 +84,7 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
           reactions(user_id, emoji)
         `)
         .order('created_at', { ascending: false })
-        .limit(PAGE_SIZE + 1); // Fetch one extra to check if there's more
+        .limit(PAGE_SIZE + 1);
 
       if (cursor) {
         query = query.lt('created_at', cursor);
@@ -106,16 +109,16 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
       const hasMorePosts = fetchedPosts.length > PAGE_SIZE;
       setHasMore(hasMorePosts);
 
-      // Remove the extra post used for checking
       const postsToAdd = hasMorePosts ? fetchedPosts.slice(0, PAGE_SIZE) : fetchedPosts;
 
       if (append) {
         setPosts(prev => [...prev, ...postsToAdd] as ChallengeResponse[]);
       } else {
-        // Sort initial posts
+        // Sort initial posts - unviewed first, then by engagement
+        const viewedSet = viewedIdsRef.current;
         const sortedPosts = [...postsToAdd].sort((a, b) => {
-          const aViewed = viewedIds.has(a.id);
-          const bViewed = viewedIds.has(b.id);
+          const aViewed = viewedSet.has(a.id);
+          const bViewed = viewedSet.has(b.id);
           if (!aViewed && bViewed) return -1;
           if (aViewed && !bViewed) return 1;
           
@@ -132,7 +135,7 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [user, feedType, viewedIds]);
+  }, [user, feedType]);
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore || posts.length === 0) return;
@@ -143,38 +146,26 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
     }
   }, [posts, loadingMore, hasMore, fetchFeed]);
 
+  // Reset on feedType change
   useEffect(() => {
+    fetchedRef.current = false;
+    setPosts([]);
+    setHasMore(true);
     fetchFeed();
-  }, [fetchFeed]);
+  }, [user?.id, feedType]);
 
   const markAsViewed = useCallback(async (responseId: string) => {
-    if (!user || viewedIds.has(responseId)) return;
+    if (!user || viewedIdsRef.current.has(responseId)) return;
 
-    setViewedIds(prev => new Set([...prev, responseId]));
+    viewedIdsRef.current.add(responseId);
 
     await supabase.from('viewed_posts' as any).insert({
       user_id: user.id,
       response_id: responseId,
     } as any);
 
-    const { data: existing } = await supabase
-      .from('post_engagement' as any)
-      .select('*')
-      .eq('response_id', responseId)
-      .maybeSingle();
-
-    if (existing) {
-      await supabase
-        .from('post_engagement' as any)
-        .update({ views_count: ((existing as any).views_count || 0) + 1 } as any)
-        .eq('response_id', responseId);
-    } else {
-      await supabase.from('post_engagement' as any).insert({
-        response_id: responseId,
-        views_count: 1,
-      } as any);
-    }
-  }, [user, viewedIds]);
+    supabase.rpc('increment_post_views', { p_response_id: responseId });
+  }, [user]);
 
   const addReaction = useCallback(async (responseId: string, emoji: string) => {
     if (!user) return { error: new Error('Not authenticated') };
@@ -188,24 +179,6 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
       });
 
     if (!error) {
-      const { data: existing } = await supabase
-        .from('post_engagement' as any)
-        .select('*')
-        .eq('response_id', responseId)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
-          .from('post_engagement' as any)
-          .update({ likes_count: ((existing as any).likes_count || 0) + 1 } as any)
-          .eq('response_id', responseId);
-      } else {
-        await supabase.from('post_engagement' as any).insert({
-          response_id: responseId,
-          likes_count: 1,
-        } as any);
-      }
-
       setPosts(prev => prev.map(p => 
         p.id === responseId 
           ? { ...p, reactions: [...(p.reactions || []), { user_id: user.id, emoji }] }
@@ -216,12 +189,18 @@ export const useAIFeed = (feedType: 'friends' | 'global' = 'friends') => {
     return { error };
   }, [user]);
 
+  const refetch = useCallback(() => {
+    fetchedRef.current = false;
+    setPosts([]);
+    fetchFeed();
+  }, [fetchFeed]);
+
   return { 
     posts, 
     loading, 
     loadingMore,
     hasMore,
-    refetch: () => fetchFeed(), 
+    refetch,
     loadMore,
     addReaction, 
     markAsViewed,
