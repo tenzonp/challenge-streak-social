@@ -250,20 +250,20 @@ const Index = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => setFeedTab('friends')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm transition-all active:scale-95 ${
                   feedTab === 'friends' 
-                    ? 'gradient-primary text-primary-foreground shadow-neon-green' 
-                    : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                    ? 'bg-foreground text-background' 
+                    : 'bg-muted text-muted-foreground'
                 }`}
               >
                 <Users className="w-4 h-4" /> Friends
               </button>
               <button
                 onClick={() => setFeedTab('global')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm transition-all active:scale-95 ${
                   feedTab === 'global' 
-                    ? 'gradient-accent text-accent-foreground shadow-neon-cyan' 
-                    : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                    ? 'bg-foreground text-background' 
+                    : 'bg-muted text-muted-foreground'
                 }`}
               >
                 <Globe className="w-4 h-4" /> Global
@@ -274,8 +274,8 @@ const Index = () => {
             {activeCompetitions.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <Trophy className="w-5 h-5 text-neon-yellow" />
-                  <h2 className="font-bold text-lg">🏆 Active Competition</h2>
+                  <Trophy className="w-5 h-5" />
+                  <h2 className="font-semibold text-sm">Active Competition</h2>
                 </div>
                 <CompetitionCard 
                   competition={activeCompetitions[0]}
@@ -287,17 +287,21 @@ const Index = () => {
               </section>
             )}
 
-            {/* HIGHLIGHTED: Pending Challenges */}
+            {/* Pending Challenges */}
             {pendingChallenges.length > 0 && (
-              <section className="relative">
-                <div className="flex items-center gap-2 mb-4">
-                  <Zap className="w-6 h-6 text-neon-pink" />
-                  <h2 className="text-xl font-black text-gradient-challenge">⚡ challenges waiting!</h2>
-                  <span className="px-3 py-1 rounded-full gradient-challenge text-xs font-black text-primary-foreground animate-bounce">
-                    {pendingChallenges.length} NEW
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-foreground/10 flex items-center justify-center">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <h2 className="font-semibold">Challenges</h2>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-foreground text-background text-xs font-semibold">
+                    {pendingChallenges.length}
                   </span>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {pendingChallenges.map(challenge => (
                     <ChallengeCard key={challenge.id} challenge={challenge} onRespond={handleRespond} />
                   ))}
@@ -307,16 +311,16 @@ const Index = () => {
             
             <section>
               <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-5 h-5 text-neon-cyan" />
-                <h2 className="text-lg font-bold">{feedTab === 'friends' ? '✨ friends feed' : '🌍 global feed'}</h2>
+                <Sparkles className="w-4 h-4" />
+                <h2 className="font-semibold text-sm">{feedTab === 'friends' ? 'Friends Feed' : 'Global Feed'}</h2>
               </div>
               {posts.length === 0 ? (
-                <div className="glass-strong rounded-3xl p-8 text-center">
-                  <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">no posts yet! be the first 🚀</p>
+                <div className="bg-card rounded-xl p-8 text-center border border-border">
+                  <Sparkles className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">No posts yet. Be the first!</p>
                 </div>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-0">
                   {posts.map((post, i) => (
                     <ViralPostCard 
                       key={post.id} 
@@ -455,7 +459,7 @@ const Index = () => {
         )}
       </main>
       
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onCreatePost={() => setShowCreatePost(true)} onSpinWheel={() => setShowSpinWheel(true)} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onCreatePost={() => setShowCreatePost(true)} onSpinWheel={() => setShowSpinWheel(true)} pendingCount={pendingChallenges.length} />
       
       {selectedFriend && <SendChallengeModal friend={selectedFriend} onClose={() => setSelectedFriend(null)} onSend={handleSendChallenge} />}
       {activeChallenge && <CameraModal challenge={activeChallenge} onClose={() => setActiveChallenge(null)} onSubmit={handleSubmitResponse} />}

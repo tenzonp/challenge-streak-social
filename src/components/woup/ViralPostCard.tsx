@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Flag, UserX } from 'lucide-react';
+import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Flag, UserX, Zap, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { hapticFeedback } from '@/utils/nativeApp';
 import PostShareCard from './PostShareCard';
 import CommentsSection from './CommentsSection';
 import ReportPostModal from './ReportPostModal';
@@ -72,6 +73,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
 
   const handleDoubleTap = () => {
     if (!liked) {
+      hapticFeedback('medium');
       setLiked(true);
       setShowHeartAnimation(true);
       onReact(post.id, '❤️');
@@ -80,12 +82,18 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
   };
 
   const handleLike = () => {
+    hapticFeedback('light');
     setLiked(!liked);
     if (!liked) {
       setShowHeartAnimation(true);
       setTimeout(() => setShowHeartAnimation(false), 600);
     }
     onReact(post.id, '❤️');
+  };
+
+  const handleFlip = () => {
+    hapticFeedback('light');
+    setShowFront(!showFront);
   };
 
   const handleBlockUser = async () => {
@@ -131,7 +139,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
         <div className="px-4 pt-3 pb-2 flex items-start gap-3">
           <button
             onClick={() => onViewProfile?.(post.user!)}
-            className="shrink-0"
+            className="shrink-0 active:scale-95 transition-transform"
           >
             <img
               src={post.user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=default`}
@@ -146,7 +154,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
             <div className="flex items-center justify-between">
               <button
                 onClick={() => onViewProfile?.(post.user!)}
-                className="flex items-center gap-1.5 text-left"
+                className="flex items-center gap-1.5 text-left active:opacity-70 transition-opacity"
               >
                 <span className="font-semibold text-sm">{post.user?.username}</span>
                 <span className="text-muted-foreground text-sm">· {formatTime(post.created_at)}</span>
@@ -155,7 +163,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
               {user && post.user_id !== user.id && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 active:scale-95 transition-transform">
                       <MoreHorizontal className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -176,13 +184,6 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
               )}
             </div>
 
-            {/* Challenge text */}
-            {post.challenge && (
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Challenge: {post.challenge.challenge_text}
-              </p>
-            )}
-
             {/* Caption */}
             {post.caption && (
               <p className="text-sm mt-1">{post.caption}</p>
@@ -190,14 +191,41 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
           </div>
         </div>
 
+        {/* Challenge Card - Visual highlight */}
+        {post.challenge && (
+          <div className="mx-4 mb-3">
+            <div className="bg-muted rounded-xl p-3 border border-border">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-foreground/10 flex items-center justify-center shrink-0">
+                  <Zap className="w-5 h-5 text-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Challenge</span>
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      <span>1hr limit</span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium leading-tight">{post.challenge.challenge_text}</p>
+                </div>
+                <div className="text-2xl">⚡</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Photo Display */}
         <div
-          className="relative aspect-[4/5] cursor-pointer mx-4 rounded-xl overflow-hidden"
-          onClick={() => setShowFront(!showFront)}
+          className="relative aspect-[4/5] cursor-pointer mx-4 rounded-xl overflow-hidden active:scale-[0.99] transition-transform"
+          onClick={handleFlip}
           onDoubleClick={handleDoubleTap}
         >
-          <img
+          <motion.img
             key={showFront ? 'front' : 'back'}
+            initial={{ opacity: 0.8 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.15 }}
             src={showFront ? post.back_photo_url : post.front_photo_url}
             alt="Post"
             loading="lazy"
@@ -206,8 +234,9 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
           />
 
           {/* Mini selfie */}
-          <div
+          <motion.div
             className="absolute top-3 left-3 w-16 h-20 rounded-lg overflow-hidden border-2 border-background shadow-lg cursor-pointer"
+            whileTap={{ scale: 0.95 }}
           >
             <img
               src={showFront ? post.front_photo_url : post.back_photo_url}
@@ -216,7 +245,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
               decoding="async"
               className="w-full h-full object-cover"
             />
-          </div>
+          </motion.div>
 
           {/* Heart animation */}
           <AnimatePresence>
@@ -240,27 +269,44 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
         </div>
 
         {/* Actions */}
-        <div className="px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={handleLike} className="flex items-center gap-1.5">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-5">
+            <button 
+              onClick={handleLike} 
+              className="flex items-center gap-1.5 active:scale-90 transition-transform"
+            >
               <Heart className={cn('w-6 h-6', liked && 'fill-accent-red text-accent-red')} />
               {likeCount > 0 && <span className="text-sm">{likeCount}</span>}
             </button>
 
-            <button onClick={() => setShowComments(true)} className="flex items-center gap-1.5">
+            <button 
+              onClick={() => {
+                hapticFeedback('light');
+                setShowComments(true);
+              }} 
+              className="flex items-center gap-1.5 active:scale-90 transition-transform"
+            >
               <MessageCircle className="w-6 h-6" />
             </button>
 
-            <button onClick={() => setShowShareModal(true)}>
+            <button 
+              onClick={() => {
+                hapticFeedback('light');
+                setShowShareModal(true);
+              }}
+              className="active:scale-90 transition-transform"
+            >
               <Send className="w-5 h-5" />
             </button>
           </div>
 
           <button
             onClick={async () => {
+              hapticFeedback('light');
               await toggleBookmark(post.id);
               toast.success(saved ? 'Removed' : 'Saved');
             }}
+            className="active:scale-90 transition-transform"
           >
             <Bookmark className={cn('w-6 h-6', saved && 'fill-current')} />
           </button>
