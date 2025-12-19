@@ -1,12 +1,11 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Heart, MessageCircle, Share2, Flame, Sparkles, Bookmark, MoreHorizontal, Flag, UserX } from 'lucide-react';
+import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Flag, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { ChallengeResponse } from '@/hooks/useChallenges';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/hooks/useProfile';
-import { isPerfReduceMotion } from '@/hooks/usePerformanceMode';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { toast } from 'sonner';
@@ -39,9 +38,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
   const saved = isBookmarked(post.id);
   const isHidden = (post as any).is_hidden;
   const isFlagged = (post as any).is_flagged;
-  const reduceMotion = isPerfReduceMotion();
 
-  // Track when post comes into view
   useEffect(() => {
     if (!cardRef.current || hasViewed.current) return;
 
@@ -78,7 +75,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
       setLiked(true);
       setShowHeartAnimation(true);
       onReact(post.id, '❤️');
-      setTimeout(() => setShowHeartAnimation(false), 1000);
+      setTimeout(() => setShowHeartAnimation(false), 600);
     }
   };
 
@@ -86,7 +83,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
     setLiked(!liked);
     if (!liked) {
       setShowHeartAnimation(true);
-      setTimeout(() => setShowHeartAnimation(false), 1000);
+      setTimeout(() => setShowHeartAnimation(false), 600);
     }
     onReact(post.id, '❤️');
   };
@@ -94,7 +91,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
   const handleBlockUser = async () => {
     if (!user || !post.user_id) return;
 
-    const confirmBlock = window.confirm(`Block @${post.user?.username || 'this user'}? You won't see their posts in your feed.`);
+    const confirmBlock = window.confirm(`Block @${post.user?.username || 'this user'}?`);
     if (!confirmBlock) return;
 
     setIsBlocking(true);
@@ -111,15 +108,13 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
         );
 
       if (error) {
-        console.error('Error blocking user:', error);
-        toast.error('Failed to block user. Please try again.');
+        toast.error('Failed to block user');
       } else {
         setLocallyHidden(true);
-        toast.success('User blocked. You will no longer see their posts.');
+        toast.success('User blocked');
       }
     } catch (e) {
-      console.error('Error blocking user:', e);
-      toast.error('Failed to block user. Please try again.');
+      toast.error('Failed to block user');
     } finally {
       setIsBlocking(false);
     }
@@ -129,138 +124,90 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
 
   if (isHidden || locallyHidden) return null;
 
-  // Simplify animations on low-end
-  const animationProps = reduceMotion 
-    ? { initial: false, animate: {} } 
-    : { 
-        initial: isNew ? { opacity: 0, y: 30 } : false,
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.2 }
-      };
-
   return (
     <>
-      <motion.article
-        ref={cardRef}
-        {...animationProps}
-        className="glass rounded-3xl overflow-hidden group"
-      >
+      <article ref={cardRef} className="border-b border-border">
         {/* Header */}
-        <div className="p-4 flex items-center justify-between">
+        <div className="px-4 pt-3 pb-2 flex items-start gap-3">
           <button
             onClick={() => onViewProfile?.(post.user!)}
-            className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity"
+            className="shrink-0"
           >
-            <div className="relative">
-              <img
-                src={post.user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=default`}
-                alt={post.user?.display_name || 'User'}
-                loading="lazy"
-                decoding="async"
-                className="w-11 h-11 rounded-2xl border-2 transition-transform group-hover:scale-105"
-                style={{ borderColor: post.user?.color_primary || 'transparent' }}
-              />
-              {/* Streak badge */}
-              {(post.user?.streak || 0) >= 7 && (
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full gradient-primary flex items-center justify-center">
-                  <Flame className="w-3 h-3 text-primary-foreground" />
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">{post.user?.display_name || 'User'}</span>
-                <span className="text-muted-foreground text-sm">@{post.user?.username}</span>
-              </div>
-              <span className="text-xs text-muted-foreground">{formatTime(post.created_at)}</span>
-            </div>
+            <img
+              src={post.user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=default`}
+              alt={post.user?.display_name || 'User'}
+              loading="lazy"
+              decoding="async"
+              className="w-9 h-9 rounded-full object-cover"
+            />
           </button>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => onViewProfile?.(post.user!)}
+                className="flex items-center gap-1.5 text-left"
+              >
+                <span className="font-semibold text-sm">{post.user?.username}</span>
+                <span className="text-muted-foreground text-sm">· {formatTime(post.created_at)}</span>
+              </button>
 
-          {user && post.user_id !== user.id && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <MoreHorizontal className="w-5 h-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-card border-border">
-                <DropdownMenuItem
-                  onClick={() => setShowReportModal(true)}
-                  className="text-destructive focus:text-destructive cursor-pointer"
-                >
-                  <Flag className="w-4 h-4 mr-2" />
-                  Report post
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleBlockUser} disabled={isBlocking} className="cursor-pointer">
-                  <UserX className="w-4 h-4 mr-2" />
-                  {isBlocking ? 'Blocking...' : 'Block user'}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-
-        {/* Challenge Banner - Main Feature */}
-        {post.challenge && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mx-4 mb-3 px-4 py-3 rounded-2xl gradient-challenge relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-black/20" />
-            <div className="relative flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] uppercase tracking-wider text-white/70 font-bold">Challenge</p>
-                <p className="text-white font-bold text-sm leading-tight truncate">{post.challenge.challenge_text}</p>
-              </div>
-              {reduceMotion ? (
-                <span className="text-2xl">⚡</span>
-              ) : (
-                <motion.div
-                  animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
-                  transition={{ repeat: Infinity, duration: 2 }}
-                  className="text-2xl"
-                >
-                  ⚡
-                </motion.div>
+              {user && post.user_id !== user.id && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-card border-border">
+                    <DropdownMenuItem
+                      onClick={() => setShowReportModal(true)}
+                      className="text-destructive cursor-pointer"
+                    >
+                      <Flag className="w-4 h-4 mr-2" />
+                      Report
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleBlockUser} disabled={isBlocking} className="cursor-pointer">
+                      <UserX className="w-4 h-4 mr-2" />
+                      Block
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
-          </motion.div>
-        )}
 
-        {/* Flagged indicator */}
-        {isFlagged && (
-          <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-yellow-500/20 border border-yellow-500/30 text-sm text-yellow-500 flex items-center gap-2">
-            <Flag className="w-4 h-4" />
-            <span>This post is under review</span>
+            {/* Challenge text */}
+            {post.challenge && (
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Challenge: {post.challenge.challenge_text}
+              </p>
+            )}
+
+            {/* Caption */}
+            {post.caption && (
+              <p className="text-sm mt-1">{post.caption}</p>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Photo Display */}
         <div
-          className="relative aspect-[4/5] cursor-pointer overflow-hidden"
+          className="relative aspect-[4/5] cursor-pointer mx-4 rounded-xl overflow-hidden"
           onClick={() => setShowFront(!showFront)}
           onDoubleClick={handleDoubleTap}
         >
-        <img
-          key={showFront ? 'front' : 'back'}
-          src={showFront ? post.back_photo_url : post.front_photo_url}
-          alt="Challenge response"
-          loading="lazy"
-          decoding="async"
-          className="w-full h-full object-cover"
-        />
+          <img
+            key={showFront ? 'front' : 'back'}
+            src={showFront ? post.back_photo_url : post.front_photo_url}
+            alt="Post"
+            loading="lazy"
+            decoding="async"
+            className="w-full h-full object-cover"
+          />
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
-
-          <motion.div
-            className="absolute top-4 left-4 w-20 h-28 rounded-2xl overflow-hidden shadow-2xl cursor-pointer"
-            style={{ border: `3px solid ${post.user?.color_primary || 'hsl(var(--primary))'}` }}
-            whileHover={reduceMotion ? undefined : { scale: 1.1, rotate: 5 }}
-            whileTap={reduceMotion ? undefined : { scale: 0.95 }}
+          {/* Mini selfie */}
+          <div
+            className="absolute top-3 left-3 w-16 h-20 rounded-lg overflow-hidden border-2 border-background shadow-lg cursor-pointer"
           >
             <img
               src={showFront ? post.front_photo_url : post.back_photo_url}
@@ -269,104 +216,72 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
               decoding="async"
               className="w-full h-full object-cover"
             />
-          </motion.div>
+          </div>
 
+          {/* Heart animation */}
           <AnimatePresence>
             {showHeartAnimation && (
               <motion.div
                 initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1.5, opacity: 1 }}
-                exit={{ scale: 2, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 1.5, opacity: 0 }}
+                transition={{ duration: 0.3 }}
                 className="absolute inset-0 flex items-center justify-center pointer-events-none"
               >
-                <Heart className="w-24 h-24 text-secondary fill-current drop-shadow-2xl" />
+                <Heart className="w-20 h-20 text-accent-red fill-current" />
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div className="absolute bottom-4 left-4 right-16 flex items-end gap-2">
-            <div className="flex -space-x-2">
-              {post.reactions?.slice(0, 3).map((_, i) => (
-                <div
-                  key={i}
-                  className="w-8 h-8 rounded-full bg-muted border-2 border-card flex items-center justify-center text-sm"
-                >
-                  ❤️
-                </div>
-              ))}
-            </div>
-            {likeCount > 3 && (
-              <span className="text-sm font-medium text-white drop-shadow-lg">+{likeCount - 3} more</span>
-            )}
+          {/* Tap hint */}
+          <div className="absolute bottom-3 right-3 px-2 py-1 rounded-md bg-black/50 text-white text-xs">
+            tap to flip
           </div>
-
-          <motion.div
-            className="absolute bottom-4 right-4 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-medium"
-            initial={{ opacity: 0 }}
-            whileHover={reduceMotion ? undefined : { opacity: 1 }}
-          >
-            tap to flip 🔄
-          </motion.div>
         </div>
 
         {/* Actions */}
-        <div className="p-4 flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLike}
-              className={cn('rounded-full transition-all duration-300', liked && 'text-secondary scale-110')}
-            >
-              <Heart className={cn('w-6 h-6', liked && 'fill-current')} />
-            </Button>
+        <div className="px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={handleLike} className="flex items-center gap-1.5">
+              <Heart className={cn('w-6 h-6', liked && 'fill-accent-red text-accent-red')} />
+              {likeCount > 0 && <span className="text-sm">{likeCount}</span>}
+            </button>
 
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setShowComments(true)}>
+            <button onClick={() => setShowComments(true)} className="flex items-center gap-1.5">
               <MessageCircle className="w-6 h-6" />
-            </Button>
+            </button>
 
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setShowShareModal(true)}>
-              <Share2 className="w-6 h-6" />
-            </Button>
+            <button onClick={() => setShowShareModal(true)}>
+              <Send className="w-5 h-5" />
+            </button>
           </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn('rounded-full', saved && 'text-primary')}
+          <button
             onClick={async () => {
               await toggleBookmark(post.id);
-              toast.success(saved ? 'Removed from vault' : 'Saved to vault! 🔒');
+              toast.success(saved ? 'Removed' : 'Saved');
             }}
           >
             <Bookmark className={cn('w-6 h-6', saved && 'fill-current')} />
-          </Button>
+          </button>
         </div>
 
-        {/* Caption */}
-        <div className="px-4 pb-4 space-y-2">
-          <p className="font-bold text-sm">{likeCount.toLocaleString()} likes</p>
-
-          {post.caption && (
-            <p className="text-sm">
-              <span className="font-bold">{post.user?.username}</span>{' '}
-              <span className="text-foreground/90">{post.caption}</span>
-            </p>
-          )}
-
-          <div className="flex items-center gap-2 pt-1">
-            <div
-              className="px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1"
-              style={{
-                background: `${post.user?.color_primary || 'hsl(var(--primary))'}20`,
-                color: post.user?.color_primary || 'hsl(var(--primary))',
-              }}
-            >
-              <Flame className="w-3 h-3" />
-              {post.user?.streak || 0} day streak
-            </div>
+        {/* Streak badge */}
+        {(post.user?.streak || 0) >= 3 && (
+          <div className="px-4 pb-3">
+            <span className="text-xs text-muted-foreground">
+              🔥 {post.user?.streak} day streak
+            </span>
           </div>
-        </div>
+        )}
+
+        {/* Flagged indicator */}
+        {isFlagged && (
+          <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-muted text-sm text-muted-foreground flex items-center gap-2">
+            <Flag className="w-4 h-4" />
+            <span>Under review</span>
+          </div>
+        )}
 
         {/* Share Modal */}
         <AnimatePresence>
@@ -377,7 +292,7 @@ const ViralPostCard = ({ post, onReact, onViewProfile, onView, isNew }: ViralPos
         <AnimatePresence>
           {showComments && <CommentsSection responseId={post.id} onClose={() => setShowComments(false)} />}
         </AnimatePresence>
-      </motion.article>
+      </article>
 
       {user && post.user_id !== user.id && (
         <ReportPostModal isOpen={showReportModal} onClose={() => setShowReportModal(false)} responseId={post.id} />

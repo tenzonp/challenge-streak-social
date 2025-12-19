@@ -1,6 +1,5 @@
-import { Home, Zap, User, Plus, Sparkles } from 'lucide-react';
+import { Home, Zap, User, Plus, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
 import { hapticFeedback } from '@/utils/nativeApp';
 
 type Tab = 'feed' | 'challenges' | 'profile';
@@ -13,91 +12,72 @@ interface BottomNavProps {
 }
 
 const BottomNav = ({ activeTab, onTabChange, onCreatePost, onSpinWheel }: BottomNavProps) => {
-  const tabs: { id: Tab; icon: typeof Home; label: string; activeColor: string }[] = [
-    { id: 'feed', icon: Home, label: 'Feed', activeColor: 'text-neon-cyan' },
-    { id: 'challenges', icon: Zap, label: 'Social', activeColor: 'text-neon-pink' },
-    { id: 'profile', icon: User, label: 'You', activeColor: 'text-neon-purple' },
-  ];
-
   const handleTabChange = (tab: Tab) => {
     hapticFeedback('light');
     onTabChange(tab);
   };
 
-  const handleSpinWheel = () => {
+  const handleCreate = () => {
     hapticFeedback('medium');
     onSpinWheel();
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 glass-strong border-t border-border/30 pb-safe bottom-nav">
-      <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-around">
-        {/* Left tab */}
-        <motion.button
-          onClick={() => handleTabChange(tabs[0].id)}
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border pb-safe bottom-nav">
+      <div className="container mx-auto px-6 h-14 flex items-center justify-around">
+        {/* Feed */}
+        <button
+          onClick={() => handleTabChange('feed')}
           className={cn(
-            "flex flex-col items-center gap-0.5 py-2 px-3 sm:px-5 rounded-xl transition-all duration-200",
-            activeTab === tabs[0].id 
-              ? "bg-neon-cyan/20 text-neon-cyan" 
-              : "text-muted-foreground active:text-foreground"
+            "flex flex-col items-center gap-0.5 p-2 transition-colors",
+            activeTab === 'feed' ? "text-foreground" : "text-muted-foreground"
           )}
-          whileTap={{ scale: 0.9 }}
         >
-          <Home className="w-5 h-5 sm:w-6 sm:h-6" />
-          <span className="text-[9px] sm:text-[10px] font-bold">{tabs[0].label}</span>
-        </motion.button>
+          <Home className="w-6 h-6" strokeWidth={activeTab === 'feed' ? 2.5 : 1.5} />
+        </button>
 
-        {/* Center create/spin button */}
-        <motion.button 
-          onClick={handleSpinWheel} 
-          className="relative -mt-6"
-          whileTap={{ scale: 0.9 }}
-        >
-          <motion.div 
-            className="w-14 h-14 sm:w-16 sm:h-16 rounded-full gradient-primary flex items-center justify-center shadow-neon-green"
-            animate={{ rotate: [0, 5, -5, 0] }}
-            transition={{ repeat: Infinity, duration: 3 }}
-          >
-            <Plus className="w-7 h-7 sm:w-8 sm:h-8 text-primary-foreground" />
-          </motion.div>
-          <motion.div
-            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-pink flex items-center justify-center"
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-          >
-            <Sparkles className="w-3 h-3 text-foreground" />
-          </motion.div>
-        </motion.button>
-
-        {/* Middle tab - Social/Challenges */}
-        <motion.button
-          onClick={() => handleTabChange(tabs[1].id)}
+        {/* Search/Social */}
+        <button
+          onClick={() => handleTabChange('challenges')}
           className={cn(
-            "flex flex-col items-center gap-0.5 py-2 px-3 sm:px-5 rounded-xl transition-all duration-200 relative",
-            activeTab === tabs[1].id 
-              ? "bg-neon-pink/20 text-neon-pink" 
-              : "text-muted-foreground active:text-foreground"
+            "flex flex-col items-center gap-0.5 p-2 transition-colors",
+            activeTab === 'challenges' ? "text-foreground" : "text-muted-foreground"
           )}
-          whileTap={{ scale: 0.9 }}
         >
-          <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
-          <span className="text-[9px] sm:text-[10px] font-bold">{tabs[1].label}</span>
-        </motion.button>
+          <Search className="w-6 h-6" strokeWidth={activeTab === 'challenges' ? 2.5 : 1.5} />
+        </button>
 
-        {/* Right tab */}
-        <motion.button
-          onClick={() => handleTabChange(tabs[2].id)}
-          className={cn(
-            "flex flex-col items-center gap-0.5 py-2 px-3 sm:px-5 rounded-xl transition-all duration-200",
-            activeTab === tabs[2].id 
-              ? "bg-neon-purple/20 text-neon-purple" 
-              : "text-muted-foreground active:text-foreground"
-          )}
-          whileTap={{ scale: 0.9 }}
+        {/* Create */}
+        <button
+          onClick={handleCreate}
+          className="flex items-center justify-center p-2 -mt-2"
         >
-          <User className="w-5 h-5 sm:w-6 sm:h-6" />
-          <span className="text-[9px] sm:text-[10px] font-bold">{tabs[2].label}</span>
-        </motion.button>
+          <div className="w-10 h-10 rounded-lg bg-foreground flex items-center justify-center">
+            <Plus className="w-6 h-6 text-background" strokeWidth={2} />
+          </div>
+        </button>
+
+        {/* Activity */}
+        <button
+          onClick={() => handleTabChange('challenges')}
+          className={cn(
+            "flex flex-col items-center gap-0.5 p-2 transition-colors",
+            "text-muted-foreground"
+          )}
+        >
+          <Zap className="w-6 h-6" strokeWidth={1.5} />
+        </button>
+
+        {/* Profile */}
+        <button
+          onClick={() => handleTabChange('profile')}
+          className={cn(
+            "flex flex-col items-center gap-0.5 p-2 transition-colors",
+            activeTab === 'profile' ? "text-foreground" : "text-muted-foreground"
+          )}
+        >
+          <User className="w-6 h-6" strokeWidth={activeTab === 'profile' ? 2.5 : 1.5} />
+        </button>
       </div>
     </nav>
   );

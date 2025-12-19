@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,67 +6,59 @@
 
 @layer base {
   :root {
-    --background: 260 20% 5%;
+    /* Threads-inspired minimalist dark theme */
+    --background: 0 0% 0%;
     --foreground: 0 0% 98%;
 
-    --card: 260 18% 10%;
+    --card: 0 0% 7%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 260 18% 8%;
+    --popover: 0 0% 7%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 150 100% 50%;
-    --primary-foreground: 260 20% 5%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 330 100% 60%;
+    --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 98%;
 
-    --accent: 200 100% 55%;
-    --accent-foreground: 260 20% 5%;
+    --accent: 0 0% 20%;
+    --accent-foreground: 0 0% 98%;
 
-    --muted: 260 15% 18%;
-    --muted-foreground: 260 10% 55%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 55%;
 
-    --destructive: 0 85% 55%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 260 15% 22%;
-    --input: 260 15% 18%;
-    --ring: 150 100% 50%;
+    --border: 0 0% 18%;
+    --input: 0 0% 12%;
+    --ring: 0 0% 50%;
 
-    --radius: 1rem;
+    --radius: 0.75rem;
 
-    /* Gen Z dopamine tokens */
-    --neon-green: 150 100% 50%;
-    --neon-pink: 330 100% 60%;
-    --neon-cyan: 185 100% 55%;
-    --neon-yellow: 55 100% 55%;
-    --neon-purple: 280 100% 65%;
-    --neon-orange: 25 100% 55%;
+    /* Minimal accent colors */
+    --accent-blue: 217 91% 60%;
+    --accent-red: 0 84% 60%;
+    --accent-green: 142 71% 45%;
+    --accent-orange: 25 95% 53%;
     
-    --gradient-primary: linear-gradient(135deg, hsl(var(--neon-green)), hsl(var(--neon-cyan)));
-    --gradient-secondary: linear-gradient(135deg, hsl(var(--neon-pink)), hsl(var(--neon-purple)));
-    --gradient-accent: linear-gradient(135deg, hsl(var(--neon-yellow)), hsl(var(--neon-orange)));
-    --gradient-challenge: linear-gradient(135deg, hsl(var(--neon-pink)), hsl(var(--neon-yellow)));
-    --gradient-card: linear-gradient(145deg, hsl(260 18% 12%), hsl(260 18% 8%));
-    --gradient-rainbow: linear-gradient(90deg, hsl(var(--neon-pink)), hsl(var(--neon-purple)), hsl(var(--neon-cyan)), hsl(var(--neon-green)), hsl(var(--neon-yellow)));
-    
-    --glass-bg: hsl(260 18% 10% / 0.8);
-    --glass-border: hsl(0 0% 100% / 0.12);
-    
-    --shadow-neon-green: 0 0 40px hsl(var(--neon-green) / 0.5);
-    --shadow-neon-pink: 0 0 40px hsl(var(--neon-pink) / 0.5);
-    --shadow-neon-cyan: 0 0 40px hsl(var(--neon-cyan) / 0.5);
-    --shadow-neon-purple: 0 0 40px hsl(var(--neon-purple) / 0.5);
+    /* Keep these for compatibility but make them subtle */
+    --neon-green: 142 71% 45%;
+    --neon-pink: 0 84% 60%;
+    --neon-cyan: 217 91% 60%;
+    --neon-yellow: 45 93% 47%;
+    --neon-purple: 262 83% 58%;
+    --neon-orange: 25 95% 53%;
 
-    --sidebar-background: 260 18% 8%;
+    --sidebar-background: 0 0% 5%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 150 100% 50%;
-    --sidebar-primary-foreground: 260 20% 5%;
-    --sidebar-accent: 260 15% 18%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 0 0% 12%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 260 15% 22%;
-    --sidebar-ring: 150 100% 50%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 0 0% 50%;
   }
 }
 
@@ -95,17 +87,13 @@
     scroll-behavior: auto !important;
   }
 
-  /* Low-end device optimizations - disable blur completely */
+  /* Low-end device optimizations */
   html.perf-low-end .glass {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background: hsl(260 18% 10% / 0.98) !important;
+    background: hsl(0 0% 7%) !important;
   }
 
   html.perf-low-end .glass-strong {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background: hsl(260 18% 12% / 0.99) !important;
+    background: hsl(0 0% 7%) !important;
   }
 
   /* Disable all shadows on low-end */
@@ -160,10 +148,9 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     overscroll-behavior: none;
     min-height: 100dvh;
-    /* Prevent pull-to-refresh on native */
     overscroll-behavior-y: contain;
   }
 
@@ -227,185 +214,107 @@
 }
 
 @layer utilities {
+  /* Minimalist surface styles */
   .glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(24px);
-    border: 1px solid var(--glass-border);
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
   }
   
   .glass-strong {
-    background: hsl(260 18% 12% / 0.95);
-    backdrop-filter: blur(40px);
-    border: 1px solid hsl(0 0% 100% / 0.15);
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
   }
   
+  /* Simplified solid colors instead of gradients */
   .gradient-primary {
-    background: var(--gradient-primary);
+    background: hsl(var(--primary));
   }
   
   .gradient-secondary {
-    background: var(--gradient-secondary);
+    background: hsl(var(--secondary));
   }
   
   .gradient-accent {
-    background: var(--gradient-accent);
+    background: hsl(var(--accent));
   }
   
   .gradient-challenge {
-    background: var(--gradient-challenge);
+    background: hsl(var(--muted));
   }
   
   .gradient-card {
-    background: var(--gradient-card);
+    background: hsl(var(--card));
   }
   
   .gradient-rainbow {
-    background: var(--gradient-rainbow);
-    background-size: 200% 100%;
-    animation: rainbow-shift 3s ease infinite;
+    background: hsl(var(--foreground));
   }
   
-  .shadow-neon-green {
-    box-shadow: var(--shadow-neon-green);
-  }
-  
-  .shadow-neon-pink {
-    box-shadow: var(--shadow-neon-pink);
-  }
-  
-  .shadow-neon-cyan {
-    box-shadow: var(--shadow-neon-cyan);
-  }
-  
+  /* Remove neon shadows - use subtle ones */
+  .shadow-neon-green,
+  .shadow-neon-pink,
+  .shadow-neon-cyan,
   .shadow-neon-purple {
-    box-shadow: var(--shadow-neon-purple);
+    box-shadow: none;
   }
   
+  /* Simple text colors instead of gradients */
   .text-gradient-primary {
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: hsl(var(--foreground));
   }
   
   .text-gradient-secondary {
-    background: var(--gradient-secondary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: hsl(var(--foreground));
   }
   
   .text-gradient-challenge {
-    background: var(--gradient-challenge);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: hsl(var(--foreground));
   }
   
   .text-gradient-rainbow {
-    background: var(--gradient-rainbow);
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    animation: rainbow-shift 3s ease infinite;
+    color: hsl(var(--foreground));
   }
   
+  /* Keep minimal animations */
   .animate-pulse-slow {
     animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   
-  .animate-glow {
-    animation: glow 2s ease-in-out infinite alternate;
-  }
-  
+  .animate-glow,
   .animate-glow-pink {
-    animation: glow-pink 2s ease-in-out infinite alternate;
+    /* No glow in minimalist design */
   }
   
   .animate-shake {
-    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
   }
   
   .animate-pop {
-    animation: pop 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    animation: pop 0.2s ease-out;
   }
   
   .animate-wiggle {
-    animation: wiggle 1s ease-in-out infinite;
+    /* Disabled for minimal feel */
   }
   
-  @keyframes glow {
-    from {
-      box-shadow: 0 0 15px hsl(var(--neon-green) / 0.4);
-    }
-    to {
-      box-shadow: 0 0 40px hsl(var(--neon-green) / 0.7);
-    }
-  }
-  
-  @keyframes glow-pink {
-    from {
-      box-shadow: 0 0 15px hsl(var(--neon-pink) / 0.4);
-    }
-    to {
-      box-shadow: 0 0 40px hsl(var(--neon-pink) / 0.7);
-    }
-  }
-  
-  @keyframes float {
-    0%, 100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-10px);
-    }
+  .animate-float {
+    /* Disabled for minimal feel */
   }
   
   @keyframes shake {
     10%, 90% { transform: translate3d(-1px, 0, 0); }
     20%, 80% { transform: translate3d(2px, 0, 0); }
-    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-    40%, 60% { transform: translate3d(4px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-2px, 0, 0); }
+    40%, 60% { transform: translate3d(2px, 0, 0); }
   }
   
   @keyframes pop {
-    0% { transform: scale(0.8); opacity: 0; }
-    50% { transform: scale(1.1); }
+    0% { transform: scale(0.95); opacity: 0; }
     100% { transform: scale(1); opacity: 1; }
   }
   
-  @keyframes wiggle {
-    0%, 100% { transform: rotate(-3deg); }
-    50% { transform: rotate(3deg); }
-  }
-  
-  @keyframes rainbow-shift {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-  
-  .animate-float {
-    animation: float 3s ease-in-out infinite;
-  }
-  
-  /* Dopamine hit effects */
-  .dopamine-burst {
-    position: relative;
-    overflow: visible;
-  }
-  
+  /* Remove dopamine effects */
   .dopamine-burst::after {
-    content: '';
-    position: absolute;
-    inset: -4px;
-    border-radius: inherit;
-    background: var(--gradient-rainbow);
-    background-size: 200% 100%;
-    animation: rainbow-shift 2s ease infinite;
-    z-index: -1;
-    opacity: 0.6;
-    filter: blur(8px);
+    display: none;
   }
 }

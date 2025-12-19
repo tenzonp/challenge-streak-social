@@ -1,9 +1,7 @@
 import { Bell, User, MessageCircle, Zap, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useProfile } from '@/hooks/useProfile';
-import { isPerfReduceMotion } from '@/hooks/usePerformanceMode';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface HeaderProps {
   onProfileClick: () => void;
@@ -24,138 +22,67 @@ const Header = ({
 }: HeaderProps) => {
   const { profile } = useProfile();
   const navigate = useNavigate();
-  const reduceMotion = isPerfReduceMotion();
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 glass-strong border-b border-border/30 pt-safe">
-      <div className="container mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between">
-        <motion.h1
-          className="text-xl sm:text-2xl font-black text-gradient-primary tracking-tight"
-          whileHover={reduceMotion ? undefined : { scale: 1.05 }}
-          whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-        >
-          woup
-        </motion.h1>
+    <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border pt-safe">
+      <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+        <h1 className="text-xl font-bold tracking-tight">woup</h1>
 
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1">
           {/* Streak Counter */}
-          <motion.div
-            className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-gradient-to-r from-neon-orange/20 to-neon-yellow/20 border border-neon-orange/30"
-            whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-          >
-            {reduceMotion ? (
-              <span className="text-sm sm:text-lg">🔥</span>
-            ) : (
-              <motion.span
-                className="text-sm sm:text-lg"
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-              >
-                🔥
-              </motion.span>
-            )}
-            <span className="font-black text-sm sm:text-base text-neon-orange">{profile?.streak || 0}</span>
-          </motion.div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-sm">
+            <span>🔥</span>
+            <span className="font-semibold">{profile?.streak || 0}</span>
+          </div>
 
           {/* Friend Requests */}
           {onFriendRequestsClick && (
-            <motion.div whileHover={reduceMotion ? undefined : { scale: 1.1 }} whileTap={reduceMotion ? undefined : { scale: 0.9 }}>
-              <Button variant="glass" size="icon" className="relative" onClick={onFriendRequestsClick}>
-                <UserPlus className={friendRequestsCount > 0 ? 'w-5 h-5 text-neon-green' : 'w-5 h-5'} />
-                <AnimatePresence>
-                  {friendRequestsCount > 0 && (
-                    <>
-                      <motion.span
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0 }}
-                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-primary text-xs font-bold flex items-center justify-center text-primary-foreground"
-                      >
-                        {friendRequestsCount > 9 ? '9+' : friendRequestsCount}
-                      </motion.span>
-                      {!reduceMotion && (
-                        <motion.span
-                          className="absolute inset-0 rounded-xl border-2 border-neon-green"
-                          animate={{ scale: [1, 1.3], opacity: [1, 0] }}
-                          transition={{ duration: 1, repeat: Infinity }}
-                        />
-                      )}
-                    </>
-                  )}
-                </AnimatePresence>
-              </Button>
-            </motion.div>
+            <Button variant="ghost" size="icon" className="relative" onClick={onFriendRequestsClick}>
+              <UserPlus className="w-5 h-5" />
+              {friendRequestsCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-accent-red text-[10px] font-bold flex items-center justify-center text-white">
+                  {friendRequestsCount > 9 ? '9+' : friendRequestsCount}
+                </span>
+              )}
+            </Button>
           )}
 
           {/* Messages */}
           {onMessagesClick && (
-            <motion.div whileHover={reduceMotion ? undefined : { scale: 1.1 }} whileTap={reduceMotion ? undefined : { scale: 0.9 }}>
-              <Button variant="glass" size="icon" className="relative" onClick={onMessagesClick}>
-                <MessageCircle className="w-5 h-5" />
-                <AnimatePresence>
-                  {unreadMessages > 0 && (
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-primary text-xs font-bold flex items-center justify-center text-primary-foreground"
-                    >
-                      {unreadMessages > 9 ? '9+' : unreadMessages}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </Button>
-            </motion.div>
-          )}
-
-          {/* Challenges/Notifications */}
-          <motion.div whileHover={reduceMotion ? undefined : { scale: 1.1 }} whileTap={reduceMotion ? undefined : { scale: 0.9 }}>
-            <Button variant="glass" size="icon" className="relative" onClick={() => navigate('/notifications')}>
-              <Zap className={pendingCount > 0 ? 'w-5 h-5 text-neon-pink' : 'w-5 h-5'} />
-              <AnimatePresence>
-                {pendingCount > 0 && (
-                  <>
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-challenge text-xs font-bold flex items-center justify-center text-primary-foreground"
-                    >
-                      {pendingCount}
-                    </motion.span>
-                    {!reduceMotion && (
-                      <motion.span
-                        className="absolute inset-0 rounded-xl border-2 border-neon-pink"
-                        animate={{ scale: [1, 1.3], opacity: [1, 0] }}
-                        transition={{ duration: 1, repeat: Infinity }}
-                      />
-                    )}
-                  </>
-                )}
-              </AnimatePresence>
-            </Button>
-          </motion.div>
-
-          {/* Profile */}
-          <motion.div whileHover={reduceMotion ? undefined : { scale: 1.1 }} whileTap={reduceMotion ? undefined : { scale: 0.9 }}>
-            <Button variant="glass" size="icon" onClick={onProfileClick}>
-              {profile?.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt={profile.display_name || 'Profile'}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-7 h-7 rounded-lg"
-                  style={{
-                    borderColor: profile.color_primary || 'hsl(var(--primary))',
-                    borderWidth: 2,
-                  }}
-                />
-              ) : (
-                <User className="w-5 h-5" />
+            <Button variant="ghost" size="icon" className="relative" onClick={onMessagesClick}>
+              <MessageCircle className="w-5 h-5" />
+              {unreadMessages > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-accent-blue text-[10px] font-bold flex items-center justify-center text-white">
+                  {unreadMessages > 9 ? '9+' : unreadMessages}
+                </span>
               )}
             </Button>
-          </motion.div>
+          )}
+
+          {/* Notifications */}
+          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/notifications')}>
+            <Zap className="w-5 h-5" />
+            {pendingCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-accent-red text-[10px] font-bold flex items-center justify-center text-white">
+                {pendingCount}
+              </span>
+            )}
+          </Button>
+
+          {/* Profile */}
+          <Button variant="ghost" size="icon" onClick={onProfileClick}>
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={profile.display_name || 'Profile'}
+                loading="lazy"
+                decoding="async"
+                className="w-7 h-7 rounded-full object-cover"
+              />
+            ) : (
+              <User className="w-5 h-5" />
+            )}
+          </Button>
         </div>
       </div>
     </header>
