@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/hooks/useProfile';
 import { notifyNewChallenge, notifyChallengeCompleted } from '@/utils/pushNotifications';
+import { Capacitor } from '@capacitor/core';
 
 export interface Challenge {
   id: string;
@@ -34,6 +35,40 @@ export const useChallenges = () => {
   const [pendingChallenges, setPendingChallenges] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Schedule local notification for challenge expiry
+  const scheduleChallengeReminder = useCallback(async (challenge: Challenge) => {
+    if (!Capacitor.isNativePlatform()) return;
+    
+    try {
+      const { LocalNotifications } = await import('@capacitor/local-notifications');
+      
+      // Check permission
+      const { display } = await LocalNotifications.checkPermissions();
+      if (display !== 'granted') return;
+      
+      const expiresAt = new Date(challenge.expires_at);
+      const reminderTime = new Date(expiresAt.getTime() - 15 * 60 * 1000); // 15 min before
+      
+      if (reminderTime <= new Date()) return; // Too late to remind
+      
+      // Create unique ID from challenge ID
+      const id = parseInt(challenge.id.replace(/\D/g, '').slice(0, 8)) || Date.now();
+      
+      await LocalNotifications.schedule({
+        notifications: [{
+          id,
+          title: "Challenge expiring! ⏰",
+          body: `"${challenge.challenge_text}" expires in 15 minutes!`,
+          schedule: { at: reminderTime, allowWhileIdle: true },
+          sound: 'default',
+          extra: { type: 'challenge_expiry', challengeId: challenge.id },
+        }],
+      });
+    } catch (e) {
+      console.log('Could not schedule challenge reminder:', e);
+    }
+  }, []);
+
   const fetchChallenges = async () => {
     if (!user) return;
 
@@ -49,14 +84,20 @@ export const useChallenges = () => {
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      setPendingChallenges(data as Challenge[]);
+      const challenges = data as Challenge[];
+      setPendingChallenges(challenges);
+      
+      // Schedule local reminders for each pending challenge
+      challenges.forEach(challenge => {
+        scheduleChallengeReminder(challenge);
+      });
     }
     setLoading(false);
   };
 
   useEffect(() => {
     fetchChallenges();
-  }, [user]);
+  }, [user, scheduleChallengeReminder]);
 
   const sendChallenge = async (toUserId: string, challengeText: string) => {
     if (!user) return { error: new Error('Not authenticated') };
