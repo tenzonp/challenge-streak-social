@@ -3,23 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Loader2, Sparkles, Zap, Flame, Trophy, Copy, Check, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Sparkles, Zap, Flame, Trophy, Check, KeyRound, Mail } from 'lucide-react';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 
 const loginSchema = z.object({
-  userCode: z.string().length(8, 'user id must be 8 digits').regex(/^\d{8}$/, 'user id must be 8 digits'),
+  email: z.string().email('please enter a valid email address').max(255),
   password: z.string().min(6, 'password must be at least 6 characters').max(100),
 });
 
 const signupSchema = z.object({
+  email: z.string().email('please enter a valid email address').max(255),
   username: z.string().min(3, 'username must be at least 3 characters').max(30),
   displayName: z.string().min(1, 'display name is required').max(50),
   password: z.string().min(6, 'password must be at least 6 characters').max(100),
 });
 
-type AuthView = 'main' | 'signup-success' | 'forgot-password' | 'reset-success';
+type AuthView = 'main' | 'signup-success' | 'forgot-password' | 'reset-sent' | 'verify-email';
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -30,21 +31,18 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [authView, setAuthView] = useState<AuthView>('main');
-  const [copied, setCopied] = useState(false);
   
   // Login state
-  const [userCode, setUserCode] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
   // Signup state
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [generatedUserCode, setGeneratedUserCode] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
   
   // Reset password state
-  const [resetUserCode, setResetUserCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
   
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -59,7 +57,7 @@ const Auth = () => {
     e.preventDefault();
     setErrors({});
     
-    const validation = loginSchema.safeParse({ userCode, password });
+    const validation = loginSchema.safeParse({ email, password });
     if (!validation.success) {
       const fieldErrors: Record<string, string> = {};
       validation.error.errors.forEach(err => {
@@ -73,45 +71,25 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      // Look up email by user_code
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('user_code', userCode)
-        .single();
-
-      if (profileError || !profile) {
-        toast({
-          title: "user not found",
-          description: "no account with that user id exists",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      if (!profile.email) {
-        toast({
-          title: "account error",
-          description: "this account is not properly set up",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Sign in with the internal email
       const { error } = await supabase.auth.signInWithPassword({
-        email: profile.email,
+        email: email.toLowerCase().trim(),
         password,
       });
       
       if (error) {
-        toast({
-          title: "login failed",
-          description: error.message,
-          variant: "destructive",
-        });
+        if (error.message.includes('Email not confirmed')) {
+          toast({
+            title: "email not verified",
+            description: "please check your email and click the verification link",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "login failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        }
       } else {
         toast({
           title: "welcome back! 🎉",
@@ -128,7 +106,12 @@ const Auth = () => {
     e.preventDefault();
     setErrors({});
     
-    const validation = signupSchema.safeParse({ username, displayName, password });
+    const validation = signupSchema.safeParse({ 
+      email: signupEmail, 
+      username, 
+      displayName, 
+      password 
+    });
     if (!validation.success) {
       const fieldErrors: Record<string, string> = {};
       validation.error.errors.forEach(err => {
@@ -155,160 +138,194 @@ const Auth = () => {
         return;
       }
 
-      // Generate unique 8-digit code
-      const { data: codeData, error: codeError } = await supabase.rpc('generate_unique_user_code');
-      if (codeError || !codeData) {
-        toast({
-          title: "signup failed",
-          description: "could not generate user id",
-          variant: "destructive",
-        });
+      // Check if email is already used
+      const { data: existingEmail } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', signupEmail.toLowerCase().trim())
+        .single();
+
+      if (existingEmail) {
+        setErrors({ email: 'email is already registered' });
         setLoading(false);
         return;
       }
-      
-      const newUserCode = codeData as string;
-      const internalEmail = `${newUserCode}@woup.internal`;
 
-      // Create user with internal email
+      // Create user with real email
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: internalEmail,
+        email: signupEmail.toLowerCase().trim(),
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
             username: username.toLowerCase(),
             display_name: displayName,
-            user_code: newUserCode,
           }
         }
       });
 
       if (authError) {
-        toast({
-          title: "signup failed",
-          description: authError.message,
-          variant: "destructive",
-        });
+        if (authError.message.includes('already registered')) {
+          setErrors({ email: 'email is already registered' });
+        } else {
+          toast({
+            title: "signup failed",
+            description: authError.message,
+            variant: "destructive",
+          });
+        }
         setLoading(false);
         return;
       }
 
       if (authData.user) {
-        // Update profile with user_code and email
+        // Update profile with email and username
         await supabase
           .from('profiles')
           .update({ 
-            user_code: newUserCode,
-            email: internalEmail,
+            email: signupEmail.toLowerCase().trim(),
             username: username.toLowerCase(),
             display_name: displayName,
           })
           .eq('user_id', authData.user.id);
 
-        setGeneratedUserCode(newUserCode);
-        setAuthView('signup-success');
+        setAuthView('verify-email');
       }
     } finally {
       setLoading(false);
     }
-  };
-
-  const copyUserCode = () => {
-    navigator.clipboard.writeText(generatedUserCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast({
-      title: "copied!",
-      description: "user id copied to clipboard",
-    });
-  };
-
-  const proceedToApp = () => {
-    navigate('/');
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
     
-    if (resetUserCode.length !== 8 || !/^\d{8}$/.test(resetUserCode)) {
-      setErrors({ resetUserCode: 'user id must be 8 digits' });
-      return;
-    }
+    const emailValidation = z.string().email('please enter a valid email address');
+    const result = emailValidation.safeParse(resetEmail);
     
-    if (newPassword.length < 6) {
-      setErrors({ newPassword: 'password must be at least 6 characters' });
-      return;
-    }
-    
-    if (newPassword !== confirmPassword) {
-      setErrors({ confirmPassword: 'passwords do not match' });
+    if (!result.success) {
+      setErrors({ resetEmail: 'please enter a valid email address' });
       return;
     }
     
     setLoading(true);
     try {
-      // Look up email by user_code
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('email, user_id')
-        .eq('user_code', resetUserCode)
-        .single();
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        resetEmail.toLowerCase().trim(),
+        {
+          redirectTo: `${window.location.origin}/update-password`,
+        }
+      );
 
-      if (profileError || !profile) {
+      if (error) {
         toast({
-          title: "user not found",
-          description: "no account with that user id exists",
+          title: "error",
+          description: error.message,
           variant: "destructive",
         });
-        setLoading(false);
-        return;
+      } else {
+        setAuthView('reset-sent');
       }
-
-      if (!profile.email) {
-        toast({
-          title: "account error",
-          description: "this account is not properly set up",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Sign in with admin access to update password
-      // First try to sign in with the internal email
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: profile.email,
-        password: newPassword,
-      });
-      
-      // If password is already correct, redirect to app
-      if (!signInError) {
-        toast({
-          title: "password already set!",
-          description: "logging you in...",
-        });
-        navigate('/');
-        return;
-      }
-
-      // For security, we can't directly reset passwords without email verification
-      // So we'll use a workaround - sign up/in with the same credentials
-      // This won't work for existing users, so we show a helpful message
-      toast({
-        title: "password reset",
-        description: "for security, please contact support to reset your password or create a new account",
-        variant: "destructive",
-      });
-      
     } finally {
       setLoading(false);
     }
   };
 
-  // Reset success view
-  if (authView === 'reset-success') {
+  const resendVerificationEmail = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: signupEmail.toLowerCase().trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "error",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "email sent!",
+          description: "check your inbox for the verification link",
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Email verification pending view
+  if (authView === 'verify-email') {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <motion.div 
+            className="absolute top-20 left-10 w-32 h-32 rounded-full bg-neon-pink/20 blur-3xl"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+            transition={{ duration: 4, repeat: Infinity }}
+          />
+          <motion.div 
+            className="absolute bottom-32 right-10 w-40 h-40 rounded-full bg-neon-cyan/20 blur-3xl"
+            animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.6, 0.4] }}
+            transition={{ duration: 5, repeat: Infinity }}
+          />
+        </div>
+
+        <motion.div 
+          className="w-full max-w-sm glass-strong rounded-4xl p-8 text-center relative z-10"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            <Mail className="w-16 h-16 mx-auto text-primary mb-4" />
+          </motion.div>
+          
+          <h2 className="text-2xl font-bold mb-2">check your email! 📧</h2>
+          <p className="text-muted-foreground mb-4">
+            we sent a verification link to
+          </p>
+          <p className="text-foreground font-medium mb-6 break-all">
+            {signupEmail}
+          </p>
+          
+          <p className="text-sm text-muted-foreground mb-6">
+            click the link in the email to verify your account and start using woup
+          </p>
+          
+          <Button
+            variant="outline"
+            onClick={resendVerificationEmail}
+            className="w-full h-11 mb-3"
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              "resend email"
+            )}
+          </Button>
+          
+          <button
+            onClick={() => { setAuthView('main'); setIsLogin(true); }}
+            className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← back to login
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Reset password email sent view
+  if (authView === 'reset-sent') {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -325,9 +342,12 @@ const Auth = () => {
           animate={{ opacity: 1, scale: 1 }}
         >
           <Check className="w-16 h-16 mx-auto text-primary mb-4" />
-          <h2 className="text-2xl font-bold mb-2">password reset!</h2>
-          <p className="text-muted-foreground mb-6">
-            you can now log in with your new password
+          <h2 className="text-2xl font-bold mb-2">check your email!</h2>
+          <p className="text-muted-foreground mb-4">
+            we sent a password reset link to
+          </p>
+          <p className="text-foreground font-medium mb-6 break-all">
+            {resetEmail}
           </p>
           
           <Button
@@ -368,62 +388,21 @@ const Auth = () => {
             <KeyRound className="w-12 h-12 mx-auto text-primary mb-2" />
             <h2 className="text-xl font-bold">reset password</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              enter your user id and new password
+              enter your email to receive a reset link
             </p>
           </div>
 
           <form onSubmit={handleForgotPassword} className="space-y-3">
             <div>
               <input
-                type="text"
-                placeholder="8-digit user id"
-                value={resetUserCode}
-                onChange={(e) => setResetUserCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all font-mono text-center text-lg tracking-widest"
-                maxLength={8}
-                inputMode="numeric"
-              />
-              {errors.resetUserCode && <p className="text-destructive text-xs mt-1">{errors.resetUserCode}</p>}
-            </div>
-
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="new password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all pr-12"
-                maxLength={100}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-              {errors.newPassword && <p className="text-destructive text-xs mt-1">{errors.newPassword}</p>}
-            </div>
-
-            <div>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="confirm new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                type="email"
+                placeholder="email address"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
                 className="w-full p-4 rounded-2xl bg-muted/50 border border-border/50 focus:border-primary outline-none transition-all"
-                maxLength={100}
               />
-              {errors.confirmPassword && <p className="text-destructive text-xs mt-1">{errors.confirmPassword}</p>}
+              {errors.resetEmail && <p className="text-destructive text-xs mt-1">{errors.resetEmail}</p>}
             </div>
-
-            <button
-              type="button"
-              onClick={() => { setAuthView('forgot-password'); setErrors({}); }}
-              className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
-            >
-              forgot password?
-            </button>
 
             <Button 
               type="submit" 
@@ -434,7 +413,7 @@ const Auth = () => {
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                "reset password"
+                "send reset link"
               )}
             </Button>
           </form>
@@ -445,73 +424,6 @@ const Auth = () => {
           >
             ← back to login
           </button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Signup success view
-  if (authView === 'signup-success') {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <motion.div 
-            className="absolute top-20 left-10 w-32 h-32 rounded-full bg-neon-pink/20 blur-3xl"
-            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-            transition={{ duration: 4, repeat: Infinity }}
-          />
-          <motion.div 
-            className="absolute bottom-32 right-10 w-40 h-40 rounded-full bg-neon-cyan/20 blur-3xl"
-            animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.6, 0.4] }}
-            transition={{ duration: 5, repeat: Infinity }}
-          />
-        </div>
-
-        <motion.div 
-          className="w-full max-w-sm glass-strong rounded-4xl p-8 text-center relative z-10"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
-          <motion.div
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            <Sparkles className="w-16 h-16 mx-auto text-primary mb-4" />
-          </motion.div>
-          
-          <h2 className="text-2xl font-bold mb-2">welcome to woup! 🎉</h2>
-          <p className="text-muted-foreground mb-6">
-            your unique user id is ready
-          </p>
-          
-          <div className="bg-muted/50 rounded-2xl p-4 mb-4">
-            <p className="text-sm text-muted-foreground mb-2">your user id</p>
-            <div className="flex items-center justify-center gap-3">
-              <span className="text-3xl font-mono font-bold tracking-wider text-primary">
-                {generatedUserCode}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={copyUserCode}
-                className="rounded-full"
-              >
-                {copied ? <Check className="w-5 h-5 text-primary" /> : <Copy className="w-5 h-5" />}
-              </Button>
-            </div>
-          </div>
-          
-          <p className="text-sm text-muted-foreground mb-6">
-            save this id! you'll need it to log in
-          </p>
-          
-          <Button
-            variant="neon"
-            onClick={proceedToApp}
-            className="w-full h-12 text-base font-bold"
-          >
-            let's go! 🚀
-          </Button>
         </motion.div>
       </div>
     );
@@ -570,15 +482,13 @@ const Auth = () => {
           <form onSubmit={handleLogin} className="space-y-3">
             <div>
               <input
-                type="text"
-                placeholder="8-digit user id"
-                value={userCode}
-                onChange={(e) => setUserCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                className="w-full p-3.5 rounded-xl bg-muted border border-border focus:border-foreground/50 outline-none transition-all font-mono text-center tracking-widest"
-                maxLength={8}
-                inputMode="numeric"
+                type="email"
+                placeholder="email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-3.5 rounded-xl bg-muted border border-border focus:border-foreground/50 outline-none transition-all"
               />
-              {errors.userCode && <p className="text-destructive text-xs mt-1">{errors.userCode}</p>}
+              {errors.email && <p className="text-destructive text-xs mt-1">{errors.email}</p>}
             </div>
 
             <div className="relative">
@@ -600,6 +510,14 @@ const Auth = () => {
               {errors.password && <p className="text-destructive text-xs mt-1">{errors.password}</p>}
             </div>
 
+            <button
+              type="button"
+              onClick={() => { setAuthView('forgot-password'); setErrors({}); }}
+              className="w-full text-right text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              forgot password?
+            </button>
+
             <Button 
               type="submit" 
               className="w-full h-11 font-semibold active:scale-[0.98] transition-transform"
@@ -614,6 +532,17 @@ const Auth = () => {
           </form>
         ) : (
           <form onSubmit={handleSignup} className="space-y-3">
+            <div>
+              <input
+                type="email"
+                placeholder="email address"
+                value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                className="w-full p-3.5 rounded-xl bg-muted border border-border focus:border-foreground/50 outline-none transition-all"
+              />
+              {errors.email && <p className="text-destructive text-xs mt-1">{errors.email}</p>}
+            </div>
+
             <div>
               <input
                 type="text"
