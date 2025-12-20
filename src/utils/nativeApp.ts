@@ -27,12 +27,33 @@ export const initializeNativeApp = async () => {
   try {
     // Initialize Keyboard
     const { Keyboard } = await import('@capacitor/keyboard');
-    Keyboard.addListener('keyboardWillShow', () => {
-      document.body.classList.add('keyboard-visible');
-    });
-    Keyboard.addListener('keyboardWillHide', () => {
-      document.body.classList.remove('keyboard-visible');
-    });
+
+    const syncKeyboardVisibleClass = (visible: boolean) => {
+      const active = document.activeElement as HTMLElement | null;
+      const isTextInput =
+        !!active &&
+        (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+
+      if (visible && isTextInput) document.body.classList.add('keyboard-visible');
+      if (!visible) document.body.classList.remove('keyboard-visible');
+    };
+
+    Keyboard.addListener('keyboardWillShow', () => syncKeyboardVisibleClass(true));
+    Keyboard.addListener('keyboardDidShow', () => syncKeyboardVisibleClass(true));
+    Keyboard.addListener('keyboardWillHide', () => syncKeyboardVisibleClass(false));
+    Keyboard.addListener('keyboardDidHide', () => syncKeyboardVisibleClass(false));
+
+    // Safety: if the class ever gets stuck, clear it as soon as user scrolls/taps outside inputs.
+    const clearIfNoTextFocus = () => {
+      const active = document.activeElement as HTMLElement | null;
+      const isTextInput =
+        !!active &&
+        (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+      if (!isTextInput) document.body.classList.remove('keyboard-visible');
+    };
+
+    window.addEventListener('scroll', clearIfNoTextFocus, { passive: true });
+    window.addEventListener('touchstart', clearIfNoTextFocus, { passive: true });
   } catch (e) {
     console.log('Keyboard not available:', e);
   }
