@@ -12,6 +12,7 @@ import { Loader2 } from "lucide-react";
 // Lazy load heavy pages for faster initial load
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const UpdatePassword = lazy(() => import("./pages/UpdatePassword"));
 const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
 const NotificationAdmin = lazy(() => import("./pages/NotificationAdmin"));
@@ -60,6 +61,7 @@ const App = () => {
               <Routes>
                 <Route path="/invite" element={<Invite />} />
                 <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
+                <Route path="/auth/callback" element={<AuthProvider><AuthCallback /></AuthProvider>} />
                 <Route path="/update-password" element={<AuthProvider><UpdatePassword /></AuthProvider>} />
                 <Route path="/notification-settings" element={<AuthProvider><NotificationSettings /></AuthProvider>} />
                 <Route path="/notifications" element={<AuthProvider><Notifications /></AuthProvider>} />
