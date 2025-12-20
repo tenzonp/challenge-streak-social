@@ -4,6 +4,7 @@ import ViralPostCard from './ViralPostCard';
 import { ChallengeResponse } from '@/hooks/useChallenges';
 import { Profile } from '@/hooks/useProfile';
 import { Sparkles, Loader2 } from 'lucide-react';
+import { hapticFeedback } from '@/utils/nativeApp';
 
 interface VirtualizedFeedProps {
   posts: ChallengeResponse[];
@@ -25,6 +26,7 @@ const VirtualizedFeed = ({
   loadingMore = false,
 }: VirtualizedFeedProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
+  const lastVisibleIndex = useRef<number>(-1);
 
   const virtualizer = useVirtualizer({
     count: posts.length + (hasMore ? 1 : 0), // Add 1 for loader
@@ -33,12 +35,19 @@ const VirtualizedFeed = ({
     overscan: 3,
   });
 
-  // Infinite scroll detection
+  // Infinite scroll detection and haptic feedback on scroll
   useEffect(() => {
     const items = virtualizer.getVirtualItems();
     const lastItem = items[items.length - 1];
 
     if (!lastItem) return;
+
+    // Haptic feedback when scrolling to new posts
+    const currentFirstVisible = items[0]?.index ?? -1;
+    if (currentFirstVisible !== lastVisibleIndex.current && currentFirstVisible > 0) {
+      hapticFeedback('light');
+      lastVisibleIndex.current = currentFirstVisible;
+    }
 
     // If we're showing the last few items, load more
     if (
