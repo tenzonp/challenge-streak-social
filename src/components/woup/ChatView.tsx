@@ -15,6 +15,7 @@ import TypingIndicator from './TypingIndicator';
 import ARFaceFilters from './ARFaceFilters';
 import { toast } from 'sonner';
 import { downloadFile } from '@/utils/nativeDownload';
+import { hapticFeedback } from '@/utils/nativeApp';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -522,6 +523,7 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
         table: 'messages',
         filter: `sender_id=eq.${friend.user_id}`
       }, () => {
+        hapticFeedback('light');
         fetchMessages();
       })
       .on('postgres_changes', { 
@@ -556,12 +558,15 @@ const ChatView = ({ friend, onBack, onViewProfile }: ChatViewProps) => {
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
+    hapticFeedback('light');
     stopTyping();
     setSending(true);
     const { error } = await sendMessage(friend.user_id, input.trim(), 'text', undefined, undefined, replyTo?.id);
     if (error) {
+      hapticFeedback('error');
       toast.error(error.message || 'Failed to send message');
     } else {
+      hapticFeedback('success');
       setInput('');
       setReplyTo(null);
     }

@@ -3,8 +3,8 @@ import { Download, Share2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { saveImageToGallery } from '@/utils/nativeDownload';
-
+import { shareImage, saveImageToGallery } from '@/utils/nativeDownload';
+import { hapticFeedback } from '@/utils/nativeApp';
 interface PostShareCardProps {
   post: {
     id: string;
@@ -157,29 +157,28 @@ const PostShareCard = ({ post, onClose }: PostShareCardProps) => {
 
   const saveToGallery = async () => {
     if (!generatedImage) return;
+    hapticFeedback('light');
 
     try {
       const filename = `woup-${post.id.slice(0, 8)}.png`;
       
-      // Try native save first, then web share, then download
-      const saved = await saveImageToGallery(generatedImage, filename);
+      // Use native share which handles both saving and sharing
+      const shared = await shareImage(
+        generatedImage, 
+        filename, 
+        post.caption || 'Check out my woup!'
+      );
       
-      if (!saved) {
-        // Fallback to web share API
-        const response = await fetch(generatedImage);
-        const blob = await response.blob();
-        
-        if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'image/png' })] })) {
-          await navigator.share({
-            files: [new File([blob], filename, { type: 'image/png' })],
-            title: 'Woup Post',
-            text: post.caption || 'Check out my woup!',
-          });
-        }
+      if (shared) {
+        hapticFeedback('success');
+      } else {
+        // Fallback to just saving
+        await saveImageToGallery(generatedImage, filename);
       }
     } catch (error) {
       console.error('Share error:', error);
-      toast.error('Failed to save');
+      hapticFeedback('error');
+      toast.error('Failed to share');
     }
   };
 

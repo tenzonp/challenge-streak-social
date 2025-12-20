@@ -2,6 +2,7 @@ import { Music, ExternalLink, Loader2, Unlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSpotify } from '@/hooks/useSpotify';
 import { Profile } from '@/hooks/useProfile';
+import { openBrowser } from '@/utils/nativeDownload';
 
 interface SpotifyConnectProps {
   profile: Profile;
@@ -72,14 +73,12 @@ const SpotifyConnect = ({ profile }: SpotifyConnectProps) => {
             <p className="text-sm text-muted-foreground truncate">{nowPlaying.artist}</p>
           </div>
           {nowPlaying.url && (
-            <a 
-              href={nowPlaying.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
+            <button 
+              onClick={() => openBrowser(nowPlaying.url!)}
               className="p-2 rounded-xl hover:bg-muted/50 transition-colors"
             >
               <ExternalLink className="w-4 h-4 text-muted-foreground" />
-            </a>
+            </button>
           )}
         </>
       ) : (
