@@ -63,8 +63,11 @@ const VirtualizedFeed = ({
   return (
     <div
       ref={parentRef}
-      className="h-[calc(100dvh-200px)] overflow-auto scrollbar-hide"
-      style={{ contain: 'strict' }}
+      className="h-[calc(100dvh-200px)] overflow-auto scrollbar-hide overscroll-contain"
+      style={{ 
+        contain: 'strict',
+        WebkitOverflowScrolling: 'touch',
+      }}
     >
       <div
         style={{

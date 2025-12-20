@@ -62,7 +62,7 @@ const Index = () => {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading, updateProfile } = useProfile();
   const { pendingChallenges, sendChallenge, respondToChallenge } = useChallenges();
-  const [feedTab, setFeedTab] = useState<FeedTab>('friends');
+  const [feedTab, setFeedTab] = useState<FeedTab>('global');
   const { posts, addReaction, markAsViewed, loading: feedLoading, loadingMore, hasMore, loadMore, refetch: refetchFeed } = useAIFeed(feedTab);
   const { 
     friends, 
