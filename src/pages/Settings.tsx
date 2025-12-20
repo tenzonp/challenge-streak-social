@@ -187,6 +187,15 @@ const SettingsPage = () => {
       title: 'Account',
       items: [
         {
+          icon: Send,
+          label: 'Change Email',
+          description: 'Update your email address',
+          onClick: () => navigate('/settings/change-email'),
+          badge: null,
+          color: 'text-cyan-500',
+          bgColor: 'bg-cyan-500/20',
+        },
+        {
           icon: Key,
           label: 'Change Password',
           description: 'Update your password',
