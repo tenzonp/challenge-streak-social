@@ -214,11 +214,18 @@ const Auth = () => {
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
+    toast({
+      title: "redirecting to Google...",
+      description: "you'll be redirected back after signing in",
+    });
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/`,
+          queryParams: {
+            prompt: 'select_account',
+          },
         },
       });
       if (error) {
@@ -227,8 +234,10 @@ const Auth = () => {
           description: error.message,
           variant: "destructive",
         });
+        setLoading(false);
       }
-    } finally {
+      // Don't reset loading - user will be redirected
+    } catch (err) {
       setLoading(false);
     }
   };
