@@ -24,6 +24,11 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
     },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_icon_config_sample',
+      iconColor: '#4ade80',
+      sound: 'default'
+    },
     Filesystem: {
       readPermissions: ['storage'],
       writePermissions: ['storage']

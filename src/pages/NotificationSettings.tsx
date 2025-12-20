@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bell, MessageCircle, Flame, Users, Trophy, Award, Loader2, ChevronRight, Send } from 'lucide-react';
+import { ArrowLeft, Bell, MessageCircle, Flame, Users, Trophy, Award, Loader2, ChevronRight, Send, Clock, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useLocalNotifications } from '@/hooks/useLocalNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { hapticFeedback } from '@/utils/nativeApp';
 
 interface NotificationPrefs {
   challenges_enabled: boolean;
@@ -35,9 +37,18 @@ const NotificationSettings = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { isSupported, isSubscribed, isLoading: pushLoading, permission, subscribe, unsubscribe } = usePushNotifications();
+  const { 
+    isSupported: localSupported, 
+    hasPermission: localPermission,
+    requestPermission: requestLocalPermission,
+    scheduleStreakReminder,
+    cancelNotification,
+    showInstantNotification,
+  } = useLocalNotifications();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [streakReminderEnabled, setStreakReminderEnabled] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPrefs>({
     challenges_enabled: true,
     messages_enabled: true,
@@ -49,6 +60,12 @@ const NotificationSettings = () => {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
   const [readNotifications, setReadNotifications] = useState<Set<string>>(new Set());
+
+  // Check if streak reminder is enabled
+  useEffect(() => {
+    const savedState = localStorage.getItem('streak_reminder_enabled');
+    setStreakReminderEnabled(savedState === 'true');
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -260,8 +277,59 @@ const NotificationSettings = () => {
       console.error('Test push error:', err);
       toast({ title: 'Failed to send test notification', variant: 'destructive' });
     } finally {
-      setSendingTest(false);
+    setSendingTest(false);
     }
+  };
+
+  const handleStreakReminderToggle = async (enabled: boolean) => {
+    hapticFeedback('light');
+    
+    if (enabled) {
+      // Request permission if needed
+      if (!localPermission) {
+        const granted = await requestLocalPermission();
+        if (!granted) {
+          toast({ title: 'Permission denied', description: 'Please enable notifications in settings', variant: 'destructive' });
+          return;
+        }
+      }
+      
+      // Schedule daily reminder at 8 PM
+      const success = await scheduleStreakReminder(20, 0);
+      if (success) {
+        setStreakReminderEnabled(true);
+        localStorage.setItem('streak_reminder_enabled', 'true');
+        toast({ title: 'Streak reminder enabled! 🔥', description: "You'll get a reminder at 8 PM daily" });
+      } else {
+        toast({ title: 'Failed to schedule reminder', variant: 'destructive' });
+      }
+    } else {
+      // Cancel streak reminder (ID 1001)
+      await cancelNotification(1001);
+      setStreakReminderEnabled(false);
+      localStorage.setItem('streak_reminder_enabled', 'false');
+      toast({ title: 'Streak reminder disabled' });
+    }
+  };
+
+  const handleTestLocalNotification = async () => {
+    hapticFeedback('light');
+    setSendingTest(true);
+    
+    const success = await showInstantNotification(
+      'Test Local Notification 🎉',
+      'Local notifications are working! These work even when offline.'
+    );
+    
+    if (success) {
+      hapticFeedback('success');
+      toast({ title: 'Local notification sent!' });
+    } else {
+      hapticFeedback('error');
+      toast({ title: 'Failed to send notification', variant: 'destructive' });
+    }
+    
+    setSendingTest(false);
   };
 
   const handleActivityTap = async (item: ActivityItem) => {
@@ -471,6 +539,58 @@ const NotificationSettings = () => {
             </Button>
           )}
         </section>
+
+        {/* Local Notifications (Native Only) */}
+        {localSupported && (
+          <section className="glass rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
+                  <Smartphone className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-lg">Local Reminders</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Works offline, scheduled on device
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Streak Reminder */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">Daily Streak Reminder</p>
+                  <p className="text-xs text-muted-foreground">Get reminded at 8 PM daily</p>
+                </div>
+              </div>
+              <Switch
+                checked={streakReminderEnabled}
+                onCheckedChange={handleStreakReminderToggle}
+              />
+            </div>
+
+            {/* Test Local Notification */}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleTestLocalNotification}
+              disabled={sendingTest}
+              className="w-full gap-2"
+            >
+              {sendingTest ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Bell className="w-4 h-4" />
+              )}
+              Test Local Notification
+            </Button>
+          </section>
+        )}
 
         {/* Individual Notification Types */}
         <section className="glass rounded-3xl overflow-hidden">
