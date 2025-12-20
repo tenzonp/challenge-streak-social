@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { Capacitor } from '@capacitor/core';
 
 interface NowPlaying {
   playing: boolean;
@@ -39,8 +40,13 @@ export const useSpotify = () => {
       // Store user_id for callback
       localStorage.setItem('spotify_auth_user_id', user.id);
       
-      // Redirect to Spotify
-      window.location.href = data.auth_url;
+      // Use native browser for OAuth on native platforms
+      if (Capacitor.isNativePlatform()) {
+        const { Browser } = await import('@capacitor/browser');
+        await Browser.open({ url: data.auth_url });
+      } else {
+        window.location.href = data.auth_url;
+      }
     } catch (error) {
       console.error('Failed to connect Spotify:', error);
     } finally {

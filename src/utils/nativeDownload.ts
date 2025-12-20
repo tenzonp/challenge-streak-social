@@ -1,11 +1,11 @@
 import { Capacitor } from '@capacitor/core';
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { toast } from 'sonner';
 
 // Check if we're on native platform
-const isNative = () => Capacitor.isNativePlatform();
-const isAndroid = () => Capacitor.getPlatform() === 'android';
-const isIOS = () => Capacitor.getPlatform() === 'ios';
+export const isNative = () => Capacitor.isNativePlatform();
+export const isAndroid = () => Capacitor.getPlatform() === 'android';
+export const isIOS = () => Capacitor.getPlatform() === 'ios';
 
 export const downloadFile = async (url: string, filename: string): Promise<boolean> => {
   if (isNative()) {
@@ -148,12 +148,53 @@ export const saveImageToGallery = async (dataUrl: string, filename: string): Pro
   }
 };
 
-// Share image using native share
+// Native share using Capacitor Share plugin
+export const nativeShare = async (options: {
+  title?: string;
+  text?: string;
+  url?: string;
+  dialogTitle?: string;
+}): Promise<boolean> => {
+  if (isNative()) {
+    try {
+      const { Share } = await import('@capacitor/share');
+      await Share.share({
+        title: options.title,
+        text: options.text,
+        url: options.url,
+        dialogTitle: options.dialogTitle || 'Share',
+      });
+      return true;
+    } catch (error) {
+      console.error('Native share error:', error);
+      return false;
+    }
+  } else {
+    // Web share fallback
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: options.title,
+          text: options.text,
+          url: options.url,
+        });
+        return true;
+      } catch (error) {
+        console.error('Web share error:', error);
+        return false;
+      }
+    }
+    return false;
+  }
+};
+
+// Share image using native share - saves to cache then shares
 export const shareImage = async (dataUrl: string, filename: string, title?: string): Promise<boolean> => {
   if (isNative()) {
     try {
-      // Save to cache first
       const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      
+      // Save to cache first
       const result = await Filesystem.writeFile({
         path: filename,
         data: base64Data,
@@ -161,27 +202,19 @@ export const shareImage = async (dataUrl: string, filename: string, title?: stri
         recursive: true,
       });
 
-      // Get the file URI
-      const fileUri = result.uri;
+      // Share using native share
+      const { Share } = await import('@capacitor/share');
+      await Share.share({
+        title: title || 'Woup',
+        url: result.uri,
+        dialogTitle: 'Share',
+      });
       
-      // Use Web Share API if available
-      if (navigator.share) {
-        const response = await fetch(dataUrl);
-        const blob = await response.blob();
-        const file = new File([blob], filename, { type: 'image/png' });
-        
-        await navigator.share({
-          title: title || 'Woup',
-          files: [file],
-        });
-        return true;
-      }
-      
-      toast.success('Image saved');
       return true;
     } catch (error) {
       console.error('Share error:', error);
-      return false;
+      // Fallback to just saving
+      return saveImageToGallery(dataUrl, filename);
     }
   } else {
     // Web share
@@ -206,5 +239,20 @@ export const shareImage = async (dataUrl: string, filename: string, title?: stri
       console.error('Share error:', error);
       return false;
     }
+  }
+};
+
+// Open URL in native browser
+export const openBrowser = async (url: string): Promise<void> => {
+  if (isNative()) {
+    try {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url });
+    } catch (error) {
+      console.error('Browser error:', error);
+      window.open(url, '_blank');
+    }
+  } else {
+    window.open(url, '_blank');
   }
 };
