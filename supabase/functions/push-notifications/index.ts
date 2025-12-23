@@ -15,15 +15,20 @@ serve(async (req) => {
     const { action, userId, payload } = await req.json();
     console.log('[Push] Action:', action, 'UserId:', userId);
 
-    // Get VAPID public key for web push subscription
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    // Get Firebase VAPID public key for web push subscription
     if (action === 'get-vapid-key') {
-      const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
-      console.log('[Push] VAPID key requested, configured:', !!vapidPublicKey);
+      const vapidPublicKey = Deno.env.get('VITE_FIREBASE_VAPID_KEY');
+      console.log('[Push] Firebase VAPID key requested, configured:', !!vapidPublicKey);
       
       if (!vapidPublicKey) {
         return new Response(
-          JSON.stringify({ error: 'VAPID key not configured' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Firebase VAPID key not configured', publicKey: null }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       return new Response(
@@ -32,29 +37,22 @@ serve(async (req) => {
       );
     }
 
-    // Save web push subscription
+    // Save web push subscription (legacy - now using FCM tokens)
     if (action === 'save-subscription') {
-      const { subscription } = await req.json().catch(() => ({}));
-      
-      if (!userId || !subscription) {
+      if (!userId || !payload?.endpoint) {
         return new Response(
           JSON.stringify({ error: 'Missing userId or subscription' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      );
-
       const { error } = await supabase
         .from('push_subscriptions')
         .upsert({
           user_id: userId,
-          endpoint: subscription.endpoint,
-          p256dh_key: subscription.keys.p256dh,
-          auth_key: subscription.keys.auth,
+          endpoint: payload.endpoint,
+          p256dh_key: payload.keys?.p256dh,
+          auth_key: payload.keys?.auth,
         }, {
           onConflict: 'user_id,endpoint'
         });
@@ -76,15 +74,14 @@ serve(async (req) => {
 
     // Test configuration
     if (action === 'test') {
-      const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
-      const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
       const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
+      const vapidKey = Deno.env.get('VITE_FIREBASE_VAPID_KEY');
 
       return new Response(
         JSON.stringify({ 
-          webPush: !!(vapidPublicKey && vapidPrivateKey),
-          fcm: !!fcmServerKey,
-          vapidConfigured: !!vapidPublicKey,
+          fcmConfigured: !!fcmServerKey,
+          vapidConfigured: !!vapidKey,
+          message: fcmServerKey ? 'FCM is configured' : 'FCM_SERVER_KEY is missing'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -99,10 +96,20 @@ serve(async (req) => {
         );
       }
 
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      );
+      // Check if user has FCM tokens
+      const { data: tokens } = await supabase
+        .from('fcm_tokens')
+        .select('id, platform')
+        .eq('user_id', userId);
+
+      if (!tokens || tokens.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, reason: 'No notification tokens found. Please enable notifications first.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[Push] Found ${tokens.length} tokens for test:`, tokens.map(t => t.platform));
 
       // Invoke send-notification function
       const response = await fetch(
@@ -115,10 +122,10 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             user_id: userId,
-            type: 'achievement',
-            title: '🎉 Test Notification',
+            type: 'message',
+            title: 'Test Notification 🔔',
             body: 'Push notifications are working!',
-            data: { url: '/' }
+            data: { test: true, url: '/' }
           })
         }
       );
@@ -127,7 +134,7 @@ serve(async (req) => {
       console.log('[Push] Test notification result:', result);
 
       return new Response(
-        JSON.stringify(result),
+        JSON.stringify({ success: result?.success ?? false, result }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
