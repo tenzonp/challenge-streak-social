@@ -4,7 +4,6 @@ import { getMessaging, getToken, Messaging, onMessage } from "firebase/messaging
 let app: FirebaseApp | null = null;
 let messaging: Messaging | null = null;
 
-// Firebase config - these are public/publishable keys
 const firebaseConfig = {
   apiKey: "AIzaSyAXsEdjVun0cG0ogo09OjabsrW9vaNgkBU",
   authDomain: "wemet-d7395.firebaseapp.com",
