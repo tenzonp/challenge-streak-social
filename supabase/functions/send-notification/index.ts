@@ -29,11 +29,12 @@ function base64UrlDecode(str: string): Uint8Array {
   return new Uint8Array([...rawData].map(char => char.charCodeAt(0)));
 }
 
-// Create VAPID JWT for authorization
+// Create VAPID JWT for authorization using JWK
 async function createVapidJwt(
   audience: string,
   subject: string,
-  vapidPrivateKey: string
+  vapidPrivateKey: string,
+  vapidPublicKey: string
 ): Promise<string> {
   const header = { alg: 'ES256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
@@ -43,16 +44,42 @@ async function createVapidJwt(
     sub: subject,
   };
 
-  const headerB64 = base64UrlEncode(new Uint8Array(new TextEncoder().encode(JSON.stringify(header))));
-  const payloadB64 = base64UrlEncode(new Uint8Array(new TextEncoder().encode(JSON.stringify(payload))));
+  const headerB64 = base64UrlEncode(new TextEncoder().encode(JSON.stringify(header)));
+  const payloadB64 = base64UrlEncode(new TextEncoder().encode(JSON.stringify(payload)));
   const unsignedToken = `${headerB64}.${payloadB64}`;
 
-  // Import the private key
+  // VAPID private key is 32-byte raw EC private key (base64url encoded)
+  // VAPID public key is 65-byte uncompressed EC public key (0x04 || X || Y)
   const privateKeyBytes = base64UrlDecode(vapidPrivateKey);
+  const publicKeyBytes = base64UrlDecode(vapidPublicKey);
   
+  console.log('[VAPID] Private key length:', privateKeyBytes.length);
+  console.log('[VAPID] Public key length:', publicKeyBytes.length);
+  
+  if (privateKeyBytes.length !== 32) {
+    throw new Error(`Invalid VAPID private key length: ${privateKeyBytes.length}, expected 32`);
+  }
+  
+  if (publicKeyBytes.length !== 65) {
+    throw new Error(`Invalid VAPID public key length: ${publicKeyBytes.length}, expected 65`);
+  }
+  
+  // Extract X and Y coordinates from uncompressed public key (skip 0x04 prefix)
+  const x = publicKeyBytes.slice(1, 33);
+  const y = publicKeyBytes.slice(33, 65);
+  
+  // Build JWK for the EC private key
+  const jwk = {
+    kty: 'EC',
+    crv: 'P-256',
+    x: base64UrlEncode(x),
+    y: base64UrlEncode(y),
+    d: base64UrlEncode(privateKeyBytes),
+  };
+
   const key = await crypto.subtle.importKey(
-    'raw',
-    privateKeyBytes.buffer as ArrayBuffer,
+    'jwk',
+    jwk,
     { name: 'ECDSA', namedCurve: 'P-256' },
     false,
     ['sign']
@@ -65,7 +92,6 @@ async function createVapidJwt(
     new TextEncoder().encode(unsignedToken)
   );
 
-  // Convert signature from DER to raw format if needed
   const signatureB64 = base64UrlEncode(new Uint8Array(signature));
   
   return `${unsignedToken}.${signatureB64}`;
@@ -299,7 +325,7 @@ async function sendWebPush(
     // Create VAPID authorization
     let authHeader = '';
     try {
-      const jwt = await createVapidJwt(audience, 'mailto:noreply@woup.app', vapidPrivateKey);
+      const jwt = await createVapidJwt(audience, 'mailto:noreply@woup.app', vapidPrivateKey, vapidPublicKey);
       authHeader = `vapid t=${jwt}, k=${vapidPublicKey}`;
     } catch (jwtError) {
       console.log('[WebPush] JWT creation failed:', jwtError);
