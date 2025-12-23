@@ -26,11 +26,10 @@ export const usePushNotifications = () => {
       setIsSupported(true);
       console.log('[Push] Native platform detected:', platform);
     } else {
-      const supported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+      const supported = 'Notification' in window && 'serviceWorker' in navigator;
       console.log('[Push] Browser support check:', { 
         Notification: 'Notification' in window,
         serviceWorker: 'serviceWorker' in navigator,
-        PushManager: 'PushManager' in window,
         supported 
       });
       setIsSupported(supported);
@@ -61,14 +60,16 @@ export const usePushNotifications = () => {
         setPermission(permResult.receive === 'granted' ? 'granted' : 
                      permResult.receive === 'denied' ? 'denied' : 'default');
       } else {
+        // Check for web FCM tokens
         const { data } = await supabase
-          .from('push_subscriptions')
+          .from('fcm_tokens')
           .select('id')
           .eq('user_id', user.id)
+          .eq('platform', 'web')
           .limit(1);
 
         const hasSubscription = !!data && data.length > 0;
-        console.log('[Push] Web subscription check:', hasSubscription ? 'exists' : 'none');
+        console.log('[Push] Web FCM token check:', hasSubscription ? 'exists' : 'none');
         setIsSubscribed(hasSubscription);
       }
     } catch (error) {
@@ -135,42 +136,56 @@ export const usePushNotifications = () => {
     };
   }, [isNative, user, platform]);
 
-  // Register service worker for web push
-  const registerServiceWorker = async (): Promise<ServiceWorkerRegistration> => {
-    console.log('[Push] Registering service worker...');
+  // Initialize Firebase for web push
+  const initFirebaseMessaging = async () => {
+    const { initializeApp } = await import('firebase/app');
+    const { getMessaging, getToken: getFcmToken } = await import('firebase/messaging');
     
-    // Unregister existing service workers first
-    const existingRegs = await navigator.serviceWorker.getRegistrations();
-    for (const reg of existingRegs) {
-      if (reg.scope.includes('/')) {
-        console.log('[Push] Unregistering existing SW:', reg.scope);
-        await reg.unregister();
-      }
-    }
-    
-    // Register fresh service worker
-    const registration = await navigator.serviceWorker.register('/sw.js', { 
-      scope: '/',
-      updateViaCache: 'none'
+    const config = {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
+      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+      appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    };
+
+    console.log('[Firebase] Config:', { 
+      hasApiKey: !!config.apiKey,
+      projectId: config.projectId,
+      senderId: config.messagingSenderId 
     });
-    
-    console.log('[Push] SW registered, state:', registration.active?.state);
-    
-    // Wait for it to be ready
-    if (registration.installing) {
-      await new Promise<void>((resolve) => {
-        registration.installing!.addEventListener('statechange', (e) => {
-          if ((e.target as ServiceWorker).state === 'activated') {
-            resolve();
-          }
-        });
+
+    if (!config.apiKey || !config.projectId || !config.messagingSenderId) {
+      throw new Error('Firebase configuration missing');
+    }
+
+    const app = initializeApp(config);
+    const messaging = getMessaging(app);
+
+    // Register service worker
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    console.log('[Firebase] Service worker registered');
+
+    // Send config to service worker
+    if (registration.active) {
+      registration.active.postMessage({
+        type: 'FIREBASE_CONFIG',
+        config
       });
     }
-    
-    await navigator.serviceWorker.ready;
-    console.log('[Push] Service worker ready');
-    
-    return registration;
+
+    // Get FCM token with VAPID key
+    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+    console.log('[Firebase] Getting token with VAPID key:', vapidKey?.substring(0, 20) + '...');
+
+    const token = await getFcmToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration: registration
+    });
+
+    console.log('[Firebase] FCM token received:', token?.substring(0, 30) + '...');
+    return token;
   };
 
   // Subscribe to push notifications
@@ -208,7 +223,7 @@ export const usePushNotifications = () => {
         setIsLoading(false);
         return { success: true };
       } else {
-        // Web push notifications
+        // Web push with Firebase
         console.log('[Push] Requesting notification permission...');
         const permissionResult = await Notification.requestPermission();
         setPermission(permissionResult);
@@ -220,67 +235,34 @@ export const usePushNotifications = () => {
           return { error: 'Permission denied' };
         }
 
-        // Register service worker
-        const registration = await registerServiceWorker();
+        // Get Firebase FCM token
+        const token = await initFirebaseMessaging();
 
-        // Get VAPID public key
-        console.log('[Push] Fetching VAPID key...');
-        const { data: vapidData, error: vapidError } = await supabase.functions.invoke('push-notifications', {
-          body: { action: 'get-vapid-key' }
-        });
-
-        if (vapidError || !vapidData?.publicKey) {
-          console.error('[Push] VAPID key error:', vapidError, vapidData);
+        if (!token) {
           setIsLoading(false);
-          toast.error('Could not get notification key from server');
-          return { error: 'Could not get notification key from server' };
+          toast.error('Failed to get notification token');
+          return { error: 'Failed to get notification token' };
         }
 
-        console.log('[Push] VAPID key received');
-
-        // Convert VAPID key
-        const vapidKey = urlBase64ToUint8Array(vapidData.publicKey);
-        
-        // Unsubscribe from existing if any
-        const existingSub = await registration.pushManager.getSubscription();
-        if (existingSub) {
-          console.log('[Push] Unsubscribing from existing subscription');
-          await existingSub.unsubscribe();
-        }
-
-        // Subscribe to push manager
-        console.log('[Push] Subscribing to push manager...');
-        const subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: vapidKey.buffer as ArrayBuffer
-        });
-
-        console.log('[Push] Subscription created:', subscription.endpoint.substring(0, 50) + '...');
-
-        // Save subscription to database
-        const subscriptionJson = subscription.toJSON();
-        console.log('[Push] Saving subscription to database...');
-
+        // Save FCM token to database
         const { error: dbError } = await supabase
-          .from('push_subscriptions')
+          .from('fcm_tokens')
           .upsert({
             user_id: user.id,
-            endpoint: subscriptionJson.endpoint!,
-            p256dh_key: subscriptionJson.keys!.p256dh,
-            auth_key: subscriptionJson.keys!.auth
+            token: token,
+            platform: 'web'
           }, {
-            onConflict: 'user_id,endpoint'
+            onConflict: 'token'
           });
 
         if (dbError) {
           console.error('[Push] Database error:', dbError);
-          await subscription.unsubscribe();
           setIsLoading(false);
           toast.error('Failed to save subscription');
           return { error: 'Failed to save subscription' };
         }
 
-        console.log('[Push] Subscription saved successfully!');
+        console.log('[Push] FCM token saved successfully!');
         setIsSubscribed(true);
         setIsLoading(false);
         toast.success('Notifications enabled!');
@@ -325,24 +307,17 @@ export const usePushNotifications = () => {
     console.log('[Push] Unsubscribing...', isNative ? `Native (${platform})` : 'Web');
 
     try {
-      if (isNative) {
-        await supabase
-          .from('fcm_tokens')
-          .delete()
-          .eq('user_id', user.id);
-      } else {
-        await supabase
-          .from('push_subscriptions')
-          .delete()
-          .eq('user_id', user.id);
+      // Delete FCM tokens
+      await supabase
+        .from('fcm_tokens')
+        .delete()
+        .eq('user_id', user.id);
 
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-        
-        if (subscription) {
-          await subscription.unsubscribe();
-        }
-      }
+      // Also delete old web push subscriptions
+      await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', user.id);
 
       console.log('[Push] Unsubscribed successfully');
       setIsSubscribed(false);
@@ -366,18 +341,3 @@ export const usePushNotifications = () => {
     sendTestNotification
   };
 };
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding)
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
-
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
