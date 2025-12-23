@@ -140,27 +140,20 @@ export const usePushNotifications = () => {
   const initFirebaseMessaging = async () => {
     const { initializeApp } = await import('firebase/app');
     const { getMessaging, getToken: getFcmToken } = await import('firebase/messaging');
-    
-    const config = {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    };
+    const { firebaseConfig, vapidKey } = await import('@/lib/firebaseConfig');
 
     console.log('[Firebase] Config:', { 
-      hasApiKey: !!config.apiKey,
-      projectId: config.projectId,
-      senderId: config.messagingSenderId 
+      hasApiKey: !!firebaseConfig.apiKey && !firebaseConfig.apiKey.includes('YOUR_'),
+      projectId: firebaseConfig.projectId,
+      senderId: firebaseConfig.messagingSenderId 
     });
 
-    if (!config.apiKey || !config.projectId || !config.messagingSenderId) {
-      throw new Error('Firebase configuration missing');
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes('YOUR_') || 
+        !firebaseConfig.projectId || firebaseConfig.projectId.includes('YOUR_')) {
+      throw new Error('Firebase configuration missing - please update src/lib/firebaseConfig.ts with your Firebase credentials');
     }
 
-    const app = initializeApp(config);
+    const app = initializeApp(firebaseConfig);
     const messaging = getMessaging(app);
 
     // Register service worker
@@ -171,12 +164,11 @@ export const usePushNotifications = () => {
     if (registration.active) {
       registration.active.postMessage({
         type: 'FIREBASE_CONFIG',
-        config
+        config: firebaseConfig
       });
     }
 
     // Get FCM token with VAPID key
-    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
     console.log('[Firebase] Getting token with VAPID key:', vapidKey?.substring(0, 20) + '...');
 
     const token = await getFcmToken(messaging, {
